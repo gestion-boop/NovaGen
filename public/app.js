@@ -272,17 +272,28 @@ function liteFiche() { const f = cur.fiche, l = Object.assign({}, f, { slogan: f
 function paintNotes() {
   const el = $('#notes'); if (!el) return; nn(); if (!cur.notes.length) { el.style.display = 'none'; return; } el.style.display = '';
   const sel = cur.notes.filter(n => n.s).length;
-  el.innerHTML = '<b>À confirmer — marque chaque point : OK (je garde) ou KO (je corrige)</b>' + cur.notes.map((n, i) => `<div class="ni"><div class="nt">${esc(n.t)}</div><div class="nb"><button class="ok ${n.s === 'ok' ? 'on' : ''}" data-i="${i}" data-s="ok">✓ OK</button><button class="ko ${n.s === 'ko' ? 'on' : ''}" data-i="${i}" data-s="ko">✗ KO</button></div>${n.s === 'ko' ? `<input class="nc" data-i="${i}" placeholder="Bonne valeur ou précision (facultatif)" value="${esc(n.c || '')}">` : ''}</div>`).join('') + `<div class="row" style="margin-top:10px"><button class="b" id="nconf" ${sel ? '' : 'disabled'}>Confirmer la sélection (${sel})</button><button class="b o s" id="nallok">Tout marquer OK</button></div>`;
+  el.innerHTML = '<b>À confirmer — marque chaque point : OK (je garde) ou KO (je corrige)</b>' + cur.notes.map((n, i) => `<div class="ni"><div class="nt">${esc(n.t)}</div><div class="nb"><button class="ok ${n.s === 'ok' ? 'on' : ''}" data-i="${i}" data-s="ok">✓ OK</button><button class="ko ${n.s === 'ko' ? 'on' : ''}" data-i="${i}" data-s="ko">✗ KO</button></div>${n.s ? `<div class="row" style="flex-wrap:nowrap;gap:6px"><input class="nc" style="flex:1;margin-top:6px" data-i="${i}" placeholder="${n.s === 'ko' ? 'La bonne info (ex. : tel 04 68 00 00 00, fermé le lundi…)' : 'Une précision à ajouter ? (facultatif)'}" value="${esc(n.c || '')}"><button class="b s na" data-i="${i}" style="margin-top:6px" title="Appliquer tout de suite ce point">Appliquer</button></div>` : ''}</div>`).join('') + `<div class="row" style="margin-top:10px"><button class="b" id="nconf" ${sel ? '' : 'disabled'}>Confirmer la sélection (${sel})</button><button class="b o s" id="nallok">Tout marquer OK</button></div>`;
   el.querySelectorAll('.nb button').forEach(b => b.onclick = () => { const n = cur.notes[+b.dataset.i]; n.s = n.s === b.dataset.s ? '' : b.dataset.s; save(); paintNotes(); });
-  el.querySelectorAll('.nc').forEach(i => i.oninput = () => { cur.notes[+i.dataset.i].c = i.value; save(); });
+  el.querySelectorAll('.nc').forEach(i => { i.oninput = () => { cur.notes[+i.dataset.i].c = i.value; save(); }; i.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); applyOne(+i.dataset.i); } }; });
+  el.querySelectorAll('.na').forEach(b => b.onclick = () => applyOne(+b.dataset.i));
   $('#nallok').onclick = () => { cur.notes.forEach(n => n.s = 'ok'); save(); paintNotes(); };
   $('#nconf').onclick = confirmNotes;
 }
+async function applyOne(i) {
+  nn(); const n = cur.notes[i]; if (!n) return; if (!n.s) n.s = 'ko';
+  const b = document.querySelector(`.na[data-i="${i}"]`); if (b) { b.disabled = true; b.textContent = '…'; }
+  const ins = `Point « à confirmer » : ${n.t}\n` + (n.c ? `Information donnée par l'utilisateur (source fiable, à appliquer telle quelle à la fiche) : ${n.c}` : 'Marqué KO par l\'utilisateur : corrige ou vide le champ concerné si tu ne trouves rien de fiable.');
+  try {
+    const r = await api('/api/fiche', { mode: 'assist', instruction: ins, fiche: liteFiche(), nbPhotos: cur.photos.length, fond: cur.fond, history: [] }), ch = applyAssist(r);
+    cur.chat = cur.chat || []; cur.chat.push({ r: 'a', t: (r.message || 'Corrigé.') + (ch.length ? '\n✔ Modifié : ' + ch.join(', ') : '') });
+    cur.notes.splice(i, 1); cur.notes.push(...(r.notes || []).map(t => ({ t: String(t), s: '', c: '' }))); save(); render();
+  } catch (e) { alert(e.message); paintNotes(); }
+}
 async function confirmNotes() {
-  nn(); const ok = cur.notes.filter(n => n.s === 'ok'), ko = cur.notes.filter(n => n.s === 'ko'); if (!ok.length && !ko.length) return;
+  nn(); const ok = cur.notes.filter(n => n.s === 'ok' && !(n.c || '').trim()), ko = cur.notes.filter(n => n.s === 'ko' || (n.s === 'ok' && (n.c || '').trim())); if (!ok.length && !ko.length) return;
   const b = $('#nconf'); b.disabled = true; b.textContent = 'Traitement…'; let extra = [], line = [];
   if (ko.length) {
-    const ins = 'Ces points « à confirmer » sont marqués KO par l\'utilisateur : corrige la fiche en conséquence.\n' + ko.map((n, i) => `${i + 1}. ${n.t}${n.c ? '\n   Précision de l\'utilisateur : ' + n.c : ''}`).join('\n') + '\nSi une précision donne la bonne valeur, applique-la telle quelle. Sinon cherche une meilleure source ; si tu ne trouves rien de fiable, vide le champ concerné plutôt que de garder une donnée douteuse.' + (ok.length ? '\nPoints validés OK (ne les remets pas en question) :\n' + ok.map(n => '- ' + n.t).join('\n') : '');
+    const ins = 'Ces points « à confirmer » sont marqués KO ou accompagnés d\'une information par l\'utilisateur : corrige la fiche en conséquence.\n' + ko.map((n, i) => `${i + 1}. ${n.t}${n.c ? '\n   Précision de l\'utilisateur : ' + n.c : ''}`).join('\n') + '\nSi une précision donne la bonne valeur, applique-la telle quelle. Sinon cherche une meilleure source ; si tu ne trouves rien de fiable, vide le champ concerné plutôt que de garder une donnée douteuse.' + (ok.length ? '\nPoints validés OK (ne les remets pas en question) :\n' + ok.map(n => '- ' + n.t).join('\n') : '');
     try {
       const r = await api('/api/fiche', { mode: 'assist', instruction: ins, fiche: liteFiche(), nbPhotos: cur.photos.length, fond: cur.fond, history: [] }), ch = applyAssist(r);
       extra = r.notes || []; line.push((r.message || 'Corrigé.') + (ch.length ? '\n✔ Modifié : ' + ch.join(', ') : ''));

@@ -99,6 +99,25 @@ function fontCss(f) {
   const ff = (fam, w, file) => `@font-face{font-family:"${fam}";font-weight:${w};font-display:swap;src:url(assets/fonts/${file}.woff2) format("woff2")}`;
   return ff('DM Serif Display', 400, 'dmserif') + ff('Great Vibes', 400, 'greatvibes') + [400, 600, 700, 800].map(w => ff('Montserrat', w, 'm' + w)).join('\n') + '\n';
 }
+
+/* ---------- fonds : motif selon le type d'établissement + photo allégée ---------- */
+function motif(f, color, op, white) {
+  const c = color, o = op, k = f.type;
+  const svg = k === 'hebergement'
+    ? `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="22"><path d="M0 11Q16 1 32 11T64 11" fill="none" stroke="${c}" stroke-opacity="${o}" stroke-width="1.2"/></svg>`
+    : k === 'commerce'
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26"><circle cx="13" cy="13" r="1.4" fill="${c}" fill-opacity="${o * 1.6}"/></svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30"><path d="M0 30L30 0M-8 8L8 -8M22 38L38 22" stroke="${c}" stroke-opacity="${o}" stroke-width="1"/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+const GRAIN = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .55 0"/></filter><rect width="180" height="180" filter="url(#n)"/></svg>')}")`;
+async function toFond(blob, w = 1100) {
+  try {
+    const bm = await createImageBitmap(blob), r = Math.min(1, w / bm.width), c = document.createElement('canvas');
+    c.width = Math.round(bm.width * r); c.height = Math.round(bm.height * r); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+    return await new Promise(res => c.toBlob(res, 'image/jpeg', .6));
+  } catch (e) { return blob; }
+}
 function baseCss(f) {
   const c1 = f.c1, c2 = f.c2, bg = mix(c2, '#ffffff', .93), bg2 = mix(c2, '#ffffff', .84), line = mix(c2, '#ffffff', .7);
   const hl = lum(c2) > .4 ? c2 : mix(c2, '#ffffff', .55);
@@ -107,7 +126,7 @@ function baseCss(f) {
   return fontCss(f) + `:root{--c1:${c1};--c2:${c2};--hl:${hl};--bg:${bg};--bg2:${bg2};--line:${line};--ink:#1d1a17;--mu:#6b645c;--ac:${lum(c2) > .62 ? '#1d1a17' : '#fff'}}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{min-height:100%;font-family:Montserrat,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink)}
-body{background:linear-gradient(160deg,#fff 0%,var(--bg) 55%,var(--bg2) 100%);background-attachment:fixed;overflow-y:auto;-webkit-overflow-scrolling:touch}
+body{background:${motif(f, c2, .09)},linear-gradient(160deg,#fff 0%,var(--bg) 55%,var(--bg2) 100%);background-attachment:fixed;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .h{${hf}}
 .top{position:sticky;top:0;z-index:30;background:${mix(c1, '#000000', .06)};border-bottom:3px solid var(--c2);display:flex;align-items:center;gap:14px;padding:9px 20px}
 .visite .top{padding-right:84px}
@@ -189,9 +208,21 @@ function pageInfos(f) {
   const sv = (f.services || []).length ? `<div class="card"><h2 class="h">${t(T.services)}</h2><div class="chips">${f.services.map(s => t(s)).join('')}</div></div>` : '';
   const soc = [f.facebook && ['Facebook', f.facebook], f.instagram && ['Instagram', f.instagram]].filter(Boolean);
   const rs = soc.length ? `<div class="card"><h2 class="h">${t(T.reseaux)}</h2><div class="row">${soc.map(([n, u]) => `<a class="btn o" href="${esc(u)}" target="_blank" rel="noopener">${n}</a>`).join('')}</div></div>` : '';
-  const hero = `<div class="card"><h2 class="h" style="font-size:26px">${esc(f.nom)}</h2>${f.slogan?.fr ? t(f.slogan, 'p', 'mu', ' style="margin-bottom:10px;font-weight:600;color:var(--c2)"') : ''}${f.descCourte?.fr ? t(f.descCourte, 'p', 'mu', ' style="margin-bottom:8px;font-weight:600"') : ''}${f.description?.fr ? t(f.description, 'p', 'mu') : ''}<div class="row" style="margin-top:16px">${acts.join('')}</div></div>`;
-  const body = header(f, ctx, T.infos, !!sch) + `<div class="wrap">${hero}${hr}${adr}${cont}${sv}${rs}</div>`;
-  return { 'index.html': shell(f, ctx, { title: f.nom + ' — Infos', body, sch }) };
+  const sub = f.slogan?.fr ? t(f.slogan, 'p', 'sl') : '';
+  const hero = `<section class="hero"><div class="hc"><h1 class="h">${esc(f.nom)}</h1>${sub}${f.descCourte?.fr ? t(f.descCourte, 'p', 'sd') : ''}<div class="row" style="margin-top:18px">${acts.join('')}</div></div></section>`;
+  const about = f.description?.fr ? `<div class="card ab">${t(f.description, 'p', 'mu')}</div>` : '';
+  const body = header(f, ctx, T.infos, !!sch) + hero + `<div class="wrap ov">${about}${hr}${adr}${cont}${sv}${rs}</div>`;
+  const c1 = mix(f.c1, '#000000', .3), hl = lum(f.c2) > .4 ? f.c2 : mix(f.c2, '#ffffff', .55);
+  const css = `.hero{position:relative;min-height:clamp(300px,50vh,480px);display:flex;align-items:flex-end;color:#fff;overflow:hidden;background:${f._fond ? `linear-gradient(180deg,${c1}40 0%,${c1}a6 55%,${c1}f2 100%),url(assets/img/fond.jpg) center/cover` : `radial-gradient(circle at 15% 20%,${f.c2}88,transparent 50%),radial-gradient(circle at 90% 95%,${hl}44,transparent 45%),${c1}`}}
+.hero::before{content:"";position:absolute;inset:0;background:${motif(f, '#ffffff', f._fond ? .05 : .1)};pointer-events:none}.hero::after{content:"";position:absolute;inset:0;background:${GRAIN};opacity:.07;mix-blend-mode:overlay;pointer-events:none}
+.hc{position:relative;width:100%;max-width:900px;margin:0 auto;padding:70px 22px 64px}
+.hero h1{font-size:clamp(34px,7.4vw,66px);line-height:1.04;text-shadow:0 3px 24px rgba(0,0,0,.45);animation:up .8s both}
+.hero .sl{margin-top:10px;font-size:clamp(15px,2.6vw,20px);font-weight:700;color:${hl};letter-spacing:.02em;animation:up .8s .15s both}.hero .sd{margin-top:8px;max-width:560px;font-size:15px;line-height:1.6;color:rgba(255,255,255,.88);animation:up .8s .25s both}
+.hero .btn{box-shadow:0 8px 22px rgba(0,0,0,.28)}.hero .btn.o{background:rgba(255,255,255,.14);color:#fff;border:1.5px solid rgba(255,255,255,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.wrap.ov{position:relative;margin-top:-34px;padding-top:0}.ov .card{animation:none;box-shadow:0 10px 30px rgba(20,20,30,.1)}.ab{border-top:4px solid var(--c2)}.ab p{font-size:15px;line-height:1.75}
+.card h2.h{display:flex;align-items:center;gap:12px}.card h2.h::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+@media(max-width:760px){.hc{padding:52px 18px 56px}}`;
+  return { 'index.html': shell(f, ctx, { title: f.nom + ' — Infos', css, body, sch }) };
 }
 
 function pageGalerie(f, photos) {
@@ -210,8 +241,13 @@ let sx=0;lb.addEventListener('touchstart',e=>sx=e.touches[0].clientX);lb.addEven
 
 function pageCarte(f) {
   const ctx = mk(), { t } = ctx, cats = parseCarte(f.carteTxt);
-  const css = `.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px}.tabs button{flex:none;border:2px solid var(--c1);background:#fff;color:var(--c1);border-radius:30px;padding:9px 18px;font:700 13px Montserrat,sans-serif;cursor:pointer}.tabs button.on{background:var(--c1);color:#fff}
-.it{display:flex;gap:14px;justify-content:space-between;align-items:baseline;padding:12px 0;border-bottom:1px dashed var(--line)}.it:last-child{border:0}.it b{font-size:15px;color:var(--ink)}.it p{font-size:13px;color:var(--mu);margin-top:3px;line-height:1.45}.it .pr{font-weight:800;color:var(--c2);white-space:nowrap;font-size:15px}.sec{display:none}.sec.on{display:block}`;
+  const dk = mix(f.c1, '#000000', .45), hl = lum(f.c2) > .4 ? f.c2 : mix(f.c2, '#ffffff', .55);
+  const css = `body{background:${dk}}body::before{content:"";position:fixed;inset:-10px;z-index:-1;background:${f._fond ? `linear-gradient(180deg,${dk}cc,${dk}f2),url(assets/img/fond.jpg) center/cover;filter:blur(7px) saturate(1.15)` : `radial-gradient(circle at 12% 8%,${f.c2}66,transparent 50%),radial-gradient(circle at 92% 92%,${hl}33,transparent 45%),${dk}`}}
+body::after{content:"";position:fixed;inset:0;z-index:-1;background:${motif(f, '#ffffff', .05)},${GRAIN};background-blend-mode:normal,overlay;opacity:.22;pointer-events:none}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:14px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tabs button{flex:none;border:1.5px solid rgba(255,255,255,.4);background:rgba(255,255,255,.1);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;border-radius:30px;padding:10px 20px;font:700 13px Montserrat,sans-serif;cursor:pointer;transition:.2s}.tabs button:hover{background:rgba(255,255,255,.2)}.tabs button.on{background:var(--c2);border-color:var(--c2);color:var(--ac)}
+.card.sec{background:#fffdf8;border:0;border-radius:6px;padding:28px 26px 22px;box-shadow:0 22px 50px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.4) inset;position:relative}.card.sec::before{content:"";position:absolute;inset:8px;border:1px solid ${mix(f.c2, '#ffffff', .6)};border-radius:3px;pointer-events:none}
+.card.sec h2{font-size:26px;text-align:center;margin-bottom:6px;padding-bottom:16px;position:relative}.card.sec h2::after{content:"";position:absolute;left:50%;bottom:0;width:56px;height:3px;border-radius:3px;background:var(--c2);transform:translateX(-50%)}
+.it{display:flex;gap:14px;justify-content:space-between;align-items:baseline;padding:13px 4px;border-bottom:1px dotted ${mix(f.c2, '#000000', .1)}66}.it:last-child{border:0}.it b{font-size:15px;color:var(--ink)}.it p{font-size:13px;color:var(--mu);margin-top:3px;line-height:1.45}.it .pr{font-weight:800;color:var(--c2);white-space:nowrap;font-size:15px}.sec{display:none}.sec.on{display:block}`;
   const body = header(f, ctx, T.carte, !!schOf(f)) + `<div class="wrap"><div class="tabs">${cats.map((c, i) => `<button data-k="${i}" class="${i ? '' : 'on'}">${esc(c.cat || '·')}</button>`).join('')}</div>${cats.map((c, i) => `<div class="card sec ${i ? '' : 'on'}" id="s${i}"><h2 class="h">${esc(c.cat)}</h2>${c.items.map(x => `<div class="it"><div><b>${esc(x.nom)}</b>${x.desc ? `<p>${esc(x.desc)}</p>` : ''}</div>${x.prix ? `<span class="pr">${esc(x.prix)}</span>` : ''}</div>`).join('')}</div>`).join('')}</div>`;
   const js = `document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button,.sec').forEach(e=>e.classList.remove('on'));b.classList.add('on');document.getElementById('s'+b.dataset.k).classList.add('on')})`;
   return { 'index.html': shell(f, ctx, { title: f.nom + ' — Carte', css, body, js, sch: schOf(f) }) };
@@ -247,8 +283,9 @@ function pageIntro(f, hasBg) {
 <script>if(/[?&]visite\\b/.test(location.search))document.documentElement.classList.add('visite')</script>
 <style>${fontCss(f)}*{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden;font-family:Montserrat,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;background:${c1}}
-.bg{position:fixed;inset:0;background:${c1}${hasBg ? ' url(assets/img/bg.jpg) center/cover' : ''};transform:scale(1.12);opacity:0;animation:bg 4.6s .2s ease-out forwards}
-.bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,${c1}8c,${c1}f0)}
+.bg{position:fixed;inset:0;background:${hasBg ? c1 + ' url(assets/img/bg.jpg) center/cover' : `radial-gradient(circle at 18% 14%,${f.c2}77,transparent 48%),radial-gradient(circle at 88% 92%,${hl}3a,transparent 44%),${c1}`};transform:scale(1.12);opacity:0;animation:bg 4.6s .2s ease-out forwards}
+.bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 42%,${c1}59 0%,${c1}cc 62%,${c1}fa 100%),linear-gradient(160deg,${f.c2}44,transparent 55%),${GRAIN};background-blend-mode:normal,normal,overlay}
+body::after{content:"";position:fixed;inset:2.4vmin;border:1px solid ${hl}77;border-radius:1.8vmin;pointer-events:none;opacity:0;animation:fr 1.6s 1.2s forwards}@keyframes fr{from{opacity:0;transform:scale(1.03)}to{opacity:1;transform:none}}
 .c{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 6vw 12vmin}
 .lg{width:min(40vmin,340px);height:min(40vmin,340px);border-radius:50%;object-fit:contain;border:clamp(4px,.8vmin,8px) solid ${hl};background:#fff;opacity:0;transform:scale(.6) rotate(-8deg);animation:av 1.2s .5s cubic-bezier(.2,1.2,.3,1) forwards,fl 4s 1.8s ease-in-out infinite;box-shadow:0 18px 50px rgba(0,0,0,.5)}
 .lgw{opacity:0;transform:scale(.7);animation:av 1.1s .5s cubic-bezier(.2,1.2,.3,1) forwards;text-align:center;padding:3.4vmin 5vmin;border-radius:3vmin;background:${c1}b8;border:2px solid ${hl};box-shadow:0 18px 50px rgba(0,0,0,.55)}
@@ -364,13 +401,14 @@ async function buildAll(p, which) {
   const hasPh = names.length > 0, heb = f.type === 'hebergement';
   const want = k => !which || which.includes(k);
   const logoOnly = p.logo ? { 'assets/img/logo.png': p.logo } : {};
+  const fondF = {}; if (hasPh && (want('infos') || want('carte'))) { f._fond = true; fondF['assets/img/fond.jpg'] = await toFond(p.photos[Math.min(p.fond || 0, names.length - 1)].blob); }
   if (want('intro')) {
     const bgIdx = Math.min(p.fond || 0, names.length - 1), bgf = hasPh ? { 'assets/img/bg.jpg': p.photos[bgIdx].blob } : {};
     out.intro = withFonts(pageIntro(f, hasPh), Object.assign({}, logoOnly, bgf));
   }
-  if (want('infos')) out.infos = withFonts(pageInfos(f), logoOnly);
+  if (want('infos')) out.infos = withFonts(pageInfos(f), Object.assign({}, logoOnly, fondF));
   if (want('galerie') && hasPh) out.galerie = withFonts(pageGalerie(f, names), imgs);
-  if (want('carte') && !heb && parseCarte(f.carteTxt).length) out.carte = withFonts(pageCarte(f), logoOnly);
+  if (want('carte') && !heb && parseCarte(f.carteTxt).length) out.carte = withFonts(pageCarte(f), Object.assign({}, logoOnly, fondF));
   if (want('reservation') && f.type !== 'commerce') out.reservation = withFonts(pageResa(f), logoOnly);
   if (want('boutons')) out.boutons = await pageBoutons(f);
   return out;
