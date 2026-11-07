@@ -513,14 +513,20 @@ async function search() {
 /* ---------- génération ---------- */
 const hashTr = f => JSON.stringify([f.slogan?.fr, f.descCourte?.fr, f.description?.fr, (f.services || []).map(s => s.fr), f.carteTxt || '']);
 const carteCats = f => parseCarte(f.carteTxt);
+let trFail = '';
 async function ensureTr(f) {
-  if (hashTr(f) === f._trh) return; if (!f.slogan?.fr && !f.descCourte?.fr && !f.description?.fr && !(f.services || []).length && !f.carteTxt) return;
+  if (hashTr(f) === f._trh || hashTr(f) === trFail) return; if (!f.slogan?.fr && !f.descCourte?.fr && !f.description?.fr && !(f.services || []).length && !f.carteTxt) return;
   try {
-    const r = await api('/api/fiche', { mode: 'translate', slogan: f.slogan?.fr || '', descCourte: f.descCourte?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr), cats: carteCats(f).map(c => c.cat), descs: carteCats(f).flatMap(c => c.items.filter(i => i.desc).map(i => i.desc)).slice(0, 150) });
+    const to = (pr, ms) => Promise.race([pr, new Promise((_, ko) => setTimeout(() => ko(new Error('délai dépassé')), ms))]);
+    const allDescs = carteCats(f).flatMap(c => c.items.filter(i => i.desc).map(i => i.desc)).slice(0, 400);
+    const chunks = []; for (let i = 0; i < allDescs.length; i += 20) chunks.push(allDescs.slice(i, i + 20));
+    const main = to(api('/api/fiche', { mode: 'translate', slogan: f.slogan?.fr || '', descCourte: f.descCourte?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr), cats: carteCats(f).map(c => c.cat), descs: [] }), 50000);
+    const parts = chunks.map(d => to(api('/api/fiche', { mode: 'translate', slogan: '', descCourte: '', description: '', services: [], cats: [], descs: d }), 50000).then(x => x.descs || []).catch(() => d.map(() => ({}))));
+    const r = await main; r.descs = (await Promise.all(parts)).flat();
     f.carteTr = { cats: (r.cats || []), descs: (r.descs || []), n: carteCats(f).flatMap(c => c.items.filter(i => i.desc)).length };
     ['slogan', 'descCourte', 'description'].forEach(k => { f[k] = Object.assign(obj4(f[k]), r[k] || {}, { fr: f[k]?.fr || '' }); });
     f.services = (f.services || []).map((s, i) => Object.assign(obj4(s), (r.services || [])[i] || {}, { fr: s.fr })); f._trh = hashTr(f); save();
-  } catch (e) { const m = $('#msg2'); if (m) m.innerHTML = '<p class="hint" style="margin-top:10px">Traduction automatique indisponible : les pages seront en français pour ES/DE/EN. (' + esc(e.message) + ')</p>'; }
+  } catch (e) { trFail = hashTr(f); const m = $('#msg2'); if (m) m.innerHTML = '<p class="hint" style="margin-top:10px">Traduction automatique indisponible : les pages seront en français pour ES/DE/EN. (' + esc(e.message) + ')</p>'; }
 }
 const fontCache = {};
 async function resolve(files) {
