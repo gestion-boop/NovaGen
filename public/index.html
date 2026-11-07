@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NovaGen — Générateur NovaTour</title>
+<style>
+:root{--b1:#345C95;--b2:#2B899D;--b3:#125C68;--ink:#16202e;--mu:#667386;--line:#dfe6ee;--bg:#f2f6fa}
+*{box-sizing:border-box;margin:0;padding:0}[hidden]{display:none!important}
+body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+header{background:linear-gradient(120deg,var(--b1),var(--b2) 60%,var(--b3));color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px}
+header b{font-size:20px;letter-spacing:.02em}header span{opacity:.8;font-size:13px}
+.app{display:grid;grid-template-columns:260px 1fr;gap:18px;max-width:1280px;margin:0 auto;padding:18px}
+aside{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;align-self:start;position:sticky;top:12px}
+aside h3{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--mu);margin:4px 4px 10px}
+.pj{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;font-weight:600;font-size:14px}
+.pj:hover{background:var(--bg)}.pj.on{background:#e4f1f4;color:var(--b3)}.pj small{display:block;color:var(--mu);font-weight:400;font-size:11.5px}
+.pj img{width:34px;height:34px;border-radius:8px;object-fit:contain;background:var(--bg)}
+.pj .x{margin-left:auto;opacity:0;border:0;background:none;cursor:pointer;color:var(--mu);font-size:16px}.pj:hover .x{opacity:1}
+main{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+.card h2{font-size:16px;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.card h2 i{font-style:normal;background:var(--b2);color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:13px}
+.hint{color:var(--mu);font-size:13px;margin-bottom:14px}
+label{display:block;font-size:12px;font-weight:700;color:var(--mu);margin-bottom:12px}
+input,select,textarea{display:block;width:100%;margin-top:5px;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font:500 14px inherit;font-family:inherit;background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--b2)}
+input[type=color]{padding:2px;height:40px;cursor:pointer}
+textarea{resize:vertical;min-height:70px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+button.b{background:var(--b2);color:#fff;border:0;border-radius:10px;padding:11px 18px;font:700 14px inherit;font-family:inherit;cursor:pointer;transition:.15s}
+button.b:hover{filter:brightness(1.08)}button.b:disabled{opacity:.5;cursor:wait}button.b.o{background:#fff;color:var(--b1);border:1.5px solid var(--b1)}button.b.s{padding:7px 12px;font-size:12.5px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+#msg{font-size:13.5px;margin-top:12px;padding:10px 14px;border-radius:10px;display:none}#msg.on{display:block}#msg.i{background:#e8f1fb;color:#1c4a85}#msg.e{background:#fdecea;color:#a1271b}#msg.k{background:#e7f6ec;color:#1b6b37}
+.notes{background:#fff7e0;border:1px solid #f0d98a;border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:14px;color:#6a5200}.notes b{display:block;margin-bottom:4px}
+.ph{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:10px}
+.ph div{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--bg)}.ph img{width:100%;height:100%;object-fit:cover}
+.ph button{position:absolute;top:4px;border:0;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;background:rgba(0,0,0,.6);color:#fff}.ph .d{right:4px}.ph .f{left:4px}.ph .f.on{background:#f2b632;color:#000}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:16px;text-align:center;color:var(--mu);font-size:13px;cursor:pointer}.drop.h{border-color:var(--b2);background:#e4f1f4}
+.logo{display:flex;align-items:center;gap:14px}.logo img{height:64px;max-width:160px;object-fit:contain;background:repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/14px 14px;border-radius:10px}
+.out{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.o{border:1.5px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}.o b{font-size:15px}.o small{color:var(--mu);font-size:12px}
+#modal{position:fixed;inset:0;background:rgba(10,18,30,.7);display:none;z-index:50;align-items:center;justify-content:center;padding:18px}#modal.on{display:flex}
+#modal .box{background:#fff;border-radius:16px;width:min(1000px,100%);height:min(86vh,800px);display:flex;flex-direction:column;overflow:hidden}
+#modal .bar{display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}#modal .bar b{flex:1}
+#modal iframe{flex:1;border:0;width:100%}.bt{flex:1;overflow:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;background:#d9dde3}.bt img{width:100%}
+.empty{padding:50px 20px;text-align:center;color:var(--mu)}
+@media(max-width:900px){.app{grid-template-columns:1fr}aside{position:static}.g3,.g4{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.g2,.g3,.g4{grid-template-columns:1fr}}
+</style></head><body>
+<header><b>NovaGen</b><span>Générateur de pages NovaTour · intro, infos, galerie, carte, réservation, boutons</span></header>
+<div class="app">
+ <aside><h3>Établissements</h3><div id="list"></div><button class="b" style="width:100%;margin-top:10px" id="new">+ Nouvel établissement</button></aside>
+ <main id="main"></main>
+</div>
+<div id="modal"><div class="box"><div class="bar"><b id="mt"></b><button class="b o s" id="mr">↻ Rejouer</button><button class="b s" id="mc">Fermer</button></div><div id="mb" style="flex:1;display:flex;min-height:0"></div></div></div>
+<script src="vendor/jszip.min.js"></script>
+<script src="gen.js"></script>
+<script src="app.js"></script>
+</body></html>

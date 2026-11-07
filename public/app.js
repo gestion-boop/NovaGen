@@ -1,0 +1,218 @@
+/* NovaGen — interface */
+const $ = s => document.querySelector(s);
+const DAYN = DAYS.fr;
+let cur = null, urls = [], saveT = 0;
+
+/* ---------- stockage (IndexedDB) ---------- */
+const idb = new Promise((ok, ko) => { const r = indexedDB.open('novagen', 1); r.onupgradeneeded = () => r.result.createObjectStore('p', { keyPath: 'id' }); r.onsuccess = () => ok(r.result); r.onerror = ko; });
+const tx = async (m, fn) => { const d = await idb; return new Promise((ok, ko) => { const t = d.transaction('p', m), q = fn(t.objectStore('p')); t.oncomplete = () => ok(q && q.result); t.onerror = ko; }); };
+const dbAll = () => tx('readonly', s => s.getAll());
+const dbPut = p => tx('readwrite', s => s.put(p));
+const dbDel = id => tx('readwrite', s => s.delete(id));
+function save() { clearTimeout(saveT); saveT = setTimeout(async () => { if (!cur) return; cur.upd = Date.now(); await dbPut(cur); renderList(); }, 350); }
+const newProject = () => ({ id: 'p' + Date.now(), upd: Date.now(), links: { site: '', facebook: '', instagram: '', autres: '', nom: '', type: '' }, fiche: null, logo: null, photos: [], fond: 0, notes: [] });
+
+/* ---------- messages / API ---------- */
+function msg(t, k = 'i') { const m = $('#msg'); if (!m) return; m.className = 'on ' + k; m.textContent = t; if (!t) m.className = ''; }
+async function api(path, body, isBlob) {
+  for (let i = 0; i < 2; i++) {
+    const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-pass': localStorage.getItem('ng_pass') || '' }, body: body ? JSON.stringify(body) : undefined });
+    if (r.status === 401) { const p = await askPass(); if (p === null) throw new Error('Mot de passe requis'); localStorage.setItem('ng_pass', p); continue; }
+    if (isBlob) { if (!r.ok) throw new Error('image'); return r.blob(); }
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status); return j;
+  }
+  throw new Error('Mot de passe incorrect');
+}
+function askPass() {
+  return new Promise(ok => {
+    const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;background:rgba(10,18,30,.7);display:flex;align-items:center;justify-content:center;z-index:99';
+    d.innerHTML = '<div class="card" style="width:340px"><h2>Mot de passe</h2><p class="hint">Protège l\'accès à ton outil.</p><input type="password" id="pw" autofocus><div class="row" style="margin-top:12px"><button class="b" id="po">Entrer</button><button class="b o" id="pc">Annuler</button></div></div>';
+    document.body.appendChild(d); const f = v => { d.remove(); ok(v); };
+    d.querySelector('#po').onclick = () => f(d.querySelector('#pw').value); d.querySelector('#pc').onclick = () => f(null);
+    d.querySelector('#pw').onkeydown = e => { if (e.key === 'Enter') f(e.target.value); };
+  });
+}
+
+/* ---------- images ---------- */
+async function toJpeg(blob, max = 1600) {
+  const bm = await createImageBitmap(blob), k = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas');
+  c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k); const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(bm, 0, 0, c.width, c.height);
+  return { blob: await new Promise(r => c.toBlob(r, 'image/jpeg', .85)), w: bm.width, h: bm.height };
+}
+async function toPng(blob, max = 700) {
+  const bm = await createImageBitmap(blob), k = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas');
+  c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+async function dominant(blob) {
+  const bm = await createImageBitmap(blob), s = 64, c = document.createElement('canvas'); c.width = c.height = s; const x = c.getContext('2d'); x.drawImage(bm, 0, 0, s, s);
+  const d = x.getImageData(0, 0, s, s).data, h = {};
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 200) continue; const r = d[i], g = d[i + 1], b = d[i + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = (mx - mn) / (mx || 1), l = (mx + mn) / 510;
+    if (l > .93 || l < .07 || sat < .28) continue; const k = (r >> 5) << 6 | (g >> 5) << 3 | (b >> 5); h[k] = h[k] || { n: 0, r: 0, g: 0, b: 0 }; const w = 1 + sat * 2; h[k].n += w; h[k].r += r * w; h[k].g += g * w; h[k].b += b * w;
+  }
+  const top = Object.values(h).sort((a, b) => b.n - a.n)[0]; if (!top) return null;
+  let c2 = rh([top.r / top.n, top.g / top.n, top.b / top.n]); if (lum(c2) > .8) c2 = mix(c2, '#000000', .3);
+  return { c2, c1: mix(c2, '#000000', .72), c3: mix(c2, '#ffffff', .5) };
+}
+async function addPhotos(files) {
+  let n = 0; for (const f of files) { try { const r = await toJpeg(f); if (Math.max(r.w, r.h) < 500) continue; cur.photos.push({ id: 'i' + Date.now() + n++, blob: r.blob }); } catch (e) { } }
+  save(); renderPhotos();
+}
+async function setLogo(blob) { cur.logo = await toPng(blob); if (!cur.fiche?._colorsSet) { const d = await dominant(cur.logo); if (d && cur.fiche) Object.assign(cur.fiche, d); } save(); render(); }
+
+/* ---------- rendu ---------- */
+function renderList() {
+  dbAll().then(all => {
+    all.sort((a, b) => b.upd - a.upd);
+    $('#list').innerHTML = all.map(p => `<div class="pj ${cur && cur.id === p.id ? 'on' : ''}" data-id="${p.id}">${p.logo ? `<img src="${URL.createObjectURL(p.logo)}">` : '<img>'}<div>${esc(p.fiche?.nom || p.links.nom || p.links.site || 'Nouveau')}<small>${esc(p.fiche?.ville || '')}</small></div><button class="x" data-del="${p.id}" title="Supprimer">✕</button></div>`).join('') || '<div class="hint" style="padding:6px">Aucun pour le moment.</div>';
+    document.querySelectorAll('.pj').forEach(e => e.onclick = async ev => {
+      if (ev.target.dataset.del) { if (confirm('Supprimer cet établissement ?')) { await dbDel(ev.target.dataset.del); if (cur && cur.id === ev.target.dataset.del) cur = null; renderList(); render(); } return; }
+      cur = all.find(p => p.id === e.dataset.id); render(); renderList();
+    });
+  });
+}
+function render() {
+  const m = $('#main');
+  if (!cur) { m.innerHTML = '<div class="card empty"><h2 style="justify-content:center">Bienvenue dans NovaGen</h2><p class="hint">Crée un établissement : colle ses liens, dépose le logo, et récupère les ZIP.</p><button class="b" id="n2">+ Nouvel établissement</button></div>'; $('#n2').onclick = () => $('#new').click(); return; }
+  const L = cur.links, f = cur.fiche;
+  m.innerHTML = `
+  <div class="card"><h2><i>1</i> Liens de l'établissement</h2><p class="hint">Colle ce que tu as. Facebook et Instagram sont lus au mieux : le site officiel et les sources publiques font le gros du travail.</p>
+   <div class="g2"><label>Site internet<input data-l="site" value="${esc(L.site)}" placeholder="https://…"></label><label>Facebook<input data-l="facebook" value="${esc(L.facebook)}" placeholder="https://facebook.com/…"></label></div>
+   <div class="g2"><label>Instagram<input data-l="instagram" value="${esc(L.instagram)}" placeholder="https://instagram.com/…"></label><label>Autres liens (Tripadvisor, Airbnb, Google Maps…)<input data-l="autres" value="${esc(L.autres)}" placeholder="séparés par un espace"></label></div>
+   <div class="g2"><label>Nom (facultatif)<input data-l="nom" value="${esc(L.nom)}"></label><label>Type<select data-l="type"><option value="">Détecter automatiquement</option>${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement (Airbnb, gîte, hôtel, camping)'], ['commerce', 'Commerce / autre']].map(([v, n]) => `<option value="${v}" ${L.type === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
+   <div class="logo" style="margin-bottom:14px">${cur.logo ? `<img id="lg" src="${URL.createObjectURL(cur.logo)}">` : ''}<div class="drop" id="lgd" style="flex:1">${cur.logo ? 'Remplacer le logo' : 'Déposer le logo (facultatif : sinon cherché sur le site)'}<input type="file" id="lgf" accept="image/*" hidden></div></div>
+   <div class="row"><button class="b" id="go">🔎 Chercher les infos</button><span class="hint" style="margin:0">Compte 30 à 60 s.</span></div><div id="msg"></div></div>
+  ${f ? ficheHtml(f) : ''}`;
+  bind(); if (f) renderPhotos();
+}
+function ficheHtml(f) {
+  const nt = (cur.notes || []).length ? `<div class="notes"><b>À confirmer</b>${cur.notes.map(n => '• ' + esc(n)).join('<br>')}</div>` : '';
+  const v = (k, lab, ph = '') => `<label>${lab}<input data-f="${k}" value="${esc(f[k] || '')}" placeholder="${ph}"></label>`;
+  return `<div class="card"><h2><i>2</i> Fiche — vérifie et corrige</h2><p class="hint">Tout est modifiable. Les modifications sont enregistrées automatiquement.</p>${nt}
+   <div class="g3">${v('nom', 'Nom')}${v('ville', 'Ville')}<label>Type<select data-f="type">${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement'], ['commerce', 'Commerce / autre']].map(([x, n]) => `<option value="${x}" ${f.type === x ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
+   <label>Accroche courte (sous le nom)<input data-s="slogan" value="${esc(f.slogan?.fr || '')}"></label>
+   <label>Description<textarea data-s="description">${esc(f.description?.fr || '')}</textarea></label>
+   <div class="g3">${v('adresse', 'Adresse')}${v('tel', 'Téléphone')}${v('email', 'E-mail')}</div>
+   <div class="g3">${v('site', 'Site')}${v('facebook', 'Facebook')}${v('instagram', 'Instagram')}</div>
+   ${v('booking', 'Lien de réservation en ligne (Airbnb, TheFork…)')}
+   <div class="g2"><label>Horaires (un jour par ligne, vide ou « Fermé »)<div style="display:grid;gap:5px;margin-top:5px">${DAYN.map((d, i) => `<div style="display:grid;grid-template-columns:84px 1fr;gap:8px;align-items:center"><span style="font-weight:600;color:var(--ink)">${d}</span><input data-h="${i}" style="margin:0" value="${esc((f.horaires || [])[i] || '')}" placeholder="12h–14h · 19h–22h"></div>`).join('')}</div></label>
+   <div><label>Services (un par ligne)<textarea data-sv rows="6">${esc((f.services || []).map(s => s.fr || s).join('\n'))}</textarea></label>
+   <label>Carte — « # Catégorie » puis « Plat | prix | description »<textarea data-f="carteTxt" rows="8" placeholder="# Burgers&#10;Le Classique | 12,50 € | steak, cheddar">${esc(f.carteTxt || '')}</textarea></label></div></div></div>
+  <div class="card"><h2><i>3</i> Style</h2><div class="g4">
+   <label>Couleur sombre<input type="color" data-f="c1" value="${f.c1 || '#1f2a44'}"></label><label>Accent<input type="color" data-f="c2" value="${f.c2 || '#2b899d'}"></label><label>Survol des boutons<input type="color" data-f="c3" value="${f.c3 || '#f2b632'}"></label>
+   <label>Titres<select data-f="police"><option value="serif" ${f.police !== 'sans' ? 'selected' : ''}>Élégant (serif + script)</option><option value="sans" ${f.police === 'sans' ? 'selected' : ''}>Moderne (Montserrat gras)</option></select></label></div>
+   <div class="g2"><label>Forme du logo<select data-f="logoForme"><option value="libre" ${f.logoForme !== 'rond' ? 'selected' : ''}>Libre (logo tel quel)</option><option value="rond" ${f.logoForme === 'rond' ? 'selected' : ''}>Rond (cadre doré)</option></select></label><div style="padding-top:22px"><button class="b o s" id="fromlogo">🎨 Couleurs depuis le logo</button></div></div></div>
+  <div class="card"><h2><i>4</i> Photos <small style="font-weight:400;color:var(--mu)" id="pc"></small></h2><p class="hint">★ = photo de fond de l'intro. ✕ = retirer. Tu peux en déposer d'autres.</p>
+   <div class="drop" id="phd">Glisser des photos ici ou cliquer pour en ajouter<input type="file" id="phf" accept="image/*" multiple hidden></div><div class="ph" id="ph"></div></div>
+  <div class="card"><h2><i>5</i> Générer</h2><p class="hint">Chaque ZIP se téléverse tel quel sur Vercel. Aperçu = exactement ce qui sera dans le ZIP.</p><div class="out" id="out"></div>
+   <div class="row" style="margin-top:14px"><button class="b" id="all">⬇ Tout télécharger (ZIP séparés)</button></div><div id="msg2"></div></div>`;
+}
+function renderPhotos() {
+  const ph = $('#ph'); if (!ph) return; urls.forEach(URL.revokeObjectURL); urls = [];
+  ph.innerHTML = cur.photos.map((p, i) => { const u = URL.createObjectURL(p.blob); urls.push(u); return `<div><img src="${u}"><button class="f ${cur.fond === i ? 'on' : ''}" data-fond="${i}">★</button><button class="d" data-rm="${i}">✕</button></div>`; }).join('');
+  $('#pc').textContent = `(${cur.photos.length})`;
+  ph.querySelectorAll('[data-fond]').forEach(b => b.onclick = () => { cur.fond = +b.dataset.fond; save(); renderPhotos(); });
+  ph.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { const i = +b.dataset.rm; cur.photos.splice(i, 1); if (cur.fond >= cur.photos.length) cur.fond = 0; save(); renderPhotos(); });
+  renderOut();
+}
+function renderOut() {
+  const o = $('#out'); if (!o) return; const f = cur.fiche, heb = f.type === 'hebergement', hasC = parseCarte(f.carteTxt).length;
+  const items = [['intro', 'Intro', '5 s · iris · signature NovaVisio'], ['infos', 'Point Info', 'horaires, adresse, contact, services'], ['galerie', 'Galerie', cur.photos.length + ' photo(s) + lightbox', !cur.photos.length], ['carte', 'Carte', 'plats et prix', heb || !hasC], ['reservation', heb ? 'Réservation / demande' : 'Réservation', 'récap + appel / e-mail / Messenger', f.type === 'commerce'], ['boutons', 'Boutons glossy', '30 icônes × 3 états, 256 et 128 px']];
+  o.innerHTML = items.map(([k, n, d, off]) => `<div class="o" style="${off ? 'opacity:.45' : ''}"><b>${n}</b><small>${off ? 'Non disponible pour cette fiche' : d}</small><div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>Aperçu</button><button class="b s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button></div></div>`).join('');
+  o.querySelectorAll('[data-pv]').forEach(b => b.onclick = () => preview(b.dataset.pv));
+  o.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => download(b.dataset.dl, b));
+}
+
+/* ---------- liaisons ---------- */
+function bind() {
+  document.querySelectorAll('[data-l]').forEach(e => e.oninput = () => { cur.links[e.dataset.l] = e.value.trim(); save(); });
+  $('#go').onclick = search;
+  const lgd = $('#lgd'), lgf = $('#lgf'); lgd.onclick = () => lgf.click(); lgf.onchange = () => lgf.files[0] && setLogo(lgf.files[0]);
+  lgd.ondragover = e => { e.preventDefault(); lgd.classList.add('h'); }; lgd.ondragleave = () => lgd.classList.remove('h'); lgd.ondrop = e => { e.preventDefault(); lgd.classList.remove('h'); e.dataTransfer.files[0] && setLogo(e.dataTransfer.files[0]); };
+  const f = cur.fiche; if (!f) return;
+  document.querySelectorAll('[data-f]').forEach(e => { e.oninput = e.onchange = () => { f[e.dataset.f] = e.value; if (/^c[123]$/.test(e.dataset.f)) f._colorsSet = true; save(); if (e.dataset.f === 'type' || e.dataset.f === 'carteTxt') renderOut(); }; });
+  document.querySelectorAll('[data-s]').forEach(e => e.oninput = () => { const k = e.dataset.s; f[k] = Object.assign({ fr: '', es: '', de: '', en: '' }, f[k], { fr: e.value }); save(); });
+  document.querySelectorAll('[data-h]').forEach(e => e.oninput = () => { f.horaires = f.horaires || []; f.horaires[+e.dataset.h] = e.value; save(); });
+  $('[data-sv]').oninput = e => { const old = Object.fromEntries((f.services || []).map(s => [s.fr, s])); f.services = e.target.value.split('\n').map(x => x.trim()).filter(Boolean).map(x => old[x] || { fr: x, es: x, de: x, en: x }); save(); };
+  $('#fromlogo').onclick = async () => { if (!cur.logo) return alert('Dépose d\'abord un logo.'); const d = await dominant(cur.logo); if (!d) return alert('Logo trop neutre : choisis les couleurs à la main.'); Object.assign(f, d); save(); render(); };
+  const phd = $('#phd'), phf = $('#phf'); phd.onclick = () => phf.click(); phf.onchange = () => addPhotos([...phf.files]);
+  phd.ondragover = e => { e.preventDefault(); phd.classList.add('h'); }; phd.ondragleave = () => phd.classList.remove('h'); phd.ondrop = e => { e.preventDefault(); phd.classList.remove('h'); addPhotos([...e.dataTransfer.files]); };
+  $('#all').onclick = downloadAll;
+}
+
+/* ---------- recherche ---------- */
+async function search() {
+  const L = cur.links, b = $('#go'); b.disabled = true; msg('Recherche en cours (site, sources publiques, horaires, carte)…');
+  try {
+    const r = await api('/api/fiche', { mode: 'search', site: L.site, facebook: L.facebook, instagram: L.instagram, autres: L.autres, nom: L.nom, type: L.type });
+    const x = r.fiche || {}, f = cur.fiche || {};
+    cur.fiche = Object.assign({ police: 'serif', logoForme: 'libre' }, f, {
+      type: L.type || x.type || 'restaurant', nom: x.nom || L.nom || '', ville: x.ville || '', slogan: obj4(x.slogan), description: obj4(x.description), adresse: x.adresse || '', tel: x.tel || '', email: x.email || '',
+      site: x.site || L.site || '', facebook: x.facebook || L.facebook || '', instagram: x.instagram || L.instagram || '', booking: x.reservation_url || '',
+      horaires: Array.isArray(x.horaires) ? x.horaires.slice(0, 7) : [], services: (x.services || []).map(obj4),
+      carteTxt: (x.carte || []).map(c => '# ' + c.cat + '\n' + (c.items || []).map(i => [i.nom, i.prix || '', i.desc || ''].join(' | ')).join('\n')).join('\n'),
+      c1: x.c1 || r.theme || '#1f2a44', c2: x.c2 || '#2b899d', c3: x.c3 || ''
+    });
+    if (!cur.fiche.c3) cur.fiche.c3 = mix(cur.fiche.c2, '#ffffff', .5);
+    cur.notes = x.notes || []; cur.fiche._trh = ''; cur.fiche._tr = hashTr(cur.fiche);
+    save(); render(); msg('Fiche trouvée. Récupération du logo et des photos…', 'i');
+    // logo
+    if (!cur.logo) for (const u of r.logos || []) { try { const bl = await api('/api/img?u=' + encodeURIComponent(u), null, true); await setLogo(bl); break; } catch (e) { } }
+    // photos
+    const pool = (r.photos || []).slice(0, 36); let n = 0, i = 0;
+    await Promise.all(Array.from({ length: 4 }, async () => { while (i < pool.length && cur.photos.length < 24) { const u = pool[i++]; try { const bl = await api('/api/img?u=' + encodeURIComponent(u), null, true), p = await toJpeg(bl); if (Math.max(p.w, p.h) < 600) continue; cur.photos.push({ id: 'i' + Date.now() + (n++), blob: p.blob }); } catch (e) { } } }));
+    if (cur.logo && !cur.fiche._colorsSet && !x.c2) { const d = await dominant(cur.logo); if (d) Object.assign(cur.fiche, d); }
+    save(); render(); msg(`Terminé : ${cur.photos.length} photo(s)${cur.logo ? ', logo trouvé' : ', pas de logo (dépose-le ci-dessus)'}. Vérifie la fiche.`, 'k');
+  } catch (e) { render(); msg(e.message, 'e'); } finally { const g = $('#go'); if (g) g.disabled = false; }
+}
+
+/* ---------- génération ---------- */
+const hashTr = f => JSON.stringify([f.slogan?.fr, f.description?.fr, (f.services || []).map(s => s.fr)]);
+async function ensureTr(f) {
+  if (f._tr === f._trh) return; if (!f.slogan?.fr && !f.description?.fr && !(f.services || []).length) return;
+  try {
+    const r = await api('/api/fiche', { mode: 'translate', slogan: f.slogan?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr) });
+    ['slogan', 'description'].forEach(k => { f[k] = Object.assign(obj4(f[k]), r[k] || {}, { fr: f[k]?.fr || '' }); });
+    f.services = (f.services || []).map((s, i) => Object.assign(obj4(s), (r.services || [])[i] || {}, { fr: s.fr })); f._trh = hashTr(f); f._tr = f._trh; save();
+  } catch (e) { const m = $('#msg2'); if (m) m.innerHTML = '<p class="hint" style="margin-top:10px">Traduction automatique indisponible : les pages seront en français pour ES/DE/EN. (' + esc(e.message) + ')</p>'; }
+}
+const fontCache = {};
+async function resolve(files) {
+  const m = {};
+  for (const [p, v] of Object.entries(files)) {
+    if (typeof v === 'string' || v instanceof Blob) m[p] = v;
+    else if (v && v.url) { fontCache[v.url] = fontCache[v.url] || await (await fetch(v.url)).blob(); m[p] = fontCache[v.url]; }
+  }
+  return m;
+}
+async function make(k) { await ensureTr(cur.fiche); const out = await buildAll({ fiche: cur.fiche, photos: cur.photos, logo: cur.logo, fond: cur.fond }, [k]); return out[k] ? resolve(out[k]) : null; }
+const slug = () => slugOf(cur.fiche.nom);
+const dl = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+async function zipOf(files) { const z = new JSZip(); for (const [p, v] of Object.entries(files)) z.file(p, v); return z.generateAsync({ type: 'blob', compression: 'DEFLATE' }); }
+async function download(k, btn) {
+  const t = btn.textContent; btn.disabled = true; btn.textContent = '…';
+  try { const f = await make(k); if (f) dl(await zipOf(f), `${slug()}-${k}.zip`); } catch (e) { alert(e.message); } finally { btn.disabled = false; btn.textContent = t; }
+}
+async function downloadAll() {
+  const b = $('#all'); b.disabled = true; b.textContent = 'Génération…';
+  try {
+    await ensureTr(cur.fiche); const out = await buildAll({ fiche: cur.fiche, photos: cur.photos, logo: cur.logo, fond: cur.fond });
+    for (const [k, files] of Object.entries(out)) { dl(await zipOf(await resolve(files)), `${slug()}-${k}.zip`); await new Promise(r => setTimeout(r, 700)); }
+  } catch (e) { alert(e.message); } finally { b.disabled = false; b.textContent = '⬇ Tout télécharger (ZIP séparés)'; }
+}
+async function preview(k) {
+  const files = await make(k); if (!files) return; $('#mt').textContent = 'Aperçu — ' + k; const mb = $('#mb'); $('#modal').classList.add('on');
+  if (k === 'boutons') {
+    $('#mr').style.display = 'none'; mb.innerHTML = '<div class="bt"></div>'; const g = mb.firstChild;
+    Object.entries(files).filter(([p]) => /\/128\//.test(p) && /_normal\.png$/.test(p)).forEach(([p, v]) => { const i = new Image(); i.src = URL.createObjectURL(v); g.appendChild(i); }); return;
+  }
+  $('#mr').style.display = '';
+  let html = files['index.html'];
+  for (const [p, v] of Object.entries(files)) if (p !== 'index.html') html = html.split(p).join(URL.createObjectURL(v));
+  const run = () => { mb.innerHTML = ''; const fr = document.createElement('iframe'); fr.srcdoc = html; fr.style.cssText = 'flex:1;border:0;width:100%'; mb.appendChild(fr); };
+  run(); $('#mr').onclick = run;
+}
+$('#mc').onclick = () => { $('#modal').classList.remove('on'); $('#mb').innerHTML = ''; };
+$('#new').onclick = async () => { cur = newProject(); await dbPut(cur); renderList(); render(); };
+(async () => { const all = await dbAll(); all.sort((a, b) => b.upd - a.upd); cur = all[0] || null; renderList(); render(); })();
