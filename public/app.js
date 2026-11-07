@@ -78,7 +78,8 @@ async function addPhotos(files) {
   save(); renderPhotos(); return ok;
 }
 async function addPhotoUrls(txt) {
-  const urls = [...new Set(String(txt).split(/\s+/).filter(u => /^https?:\/\//i.test(u)))]; let ok = 0;
+  const igm = u => { const m = u.match(/instagram\.com\/(?:[\w.]+\/)?(?:p|reel|reels|tv)\/([\w-]+)/i); return m ? 'https://www.instagram.com/p/' + m[1] + '/media/?size=l' : u; };
+  const urls = [...new Set(String(txt).split(/\s+/).filter(u => /^https?:\/\//i.test(u)).map(igm))]; let ok = 0;
   for (const u of urls) { try { const bl = await api('/api/img?u=' + encodeURIComponent(u), null, true), r = await toJpeg(bl); if (Math.max(r.w, r.h) < 400) continue; cur.photos.push({ id: 'i' + Date.now() + ok, blob: r.blob }); ok++; } catch (e) { } }
   save(); renderPhotos(); return [ok, urls.length];
 }
