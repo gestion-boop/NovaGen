@@ -1,1 +1,13 @@
-{ "functions": { "api/fiche.js": { "maxDuration": 60 }, "api/img.js": { "maxDuration": 20 } } }
+{
+ "functions": {
+  "api/fiche.js": {
+   "maxDuration": 60
+  },
+  "api/img.js": {
+   "maxDuration": 20
+  },
+  "api/publish.js": {
+   "maxDuration": 30
+  }
+ }
+}

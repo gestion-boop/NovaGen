@@ -9,7 +9,7 @@ const tx = async (m, fn) => { const d = await idb; return new Promise((ok, ko) =
 const dbAll = () => tx('readonly', s => s.getAll());
 const dbPut = p => tx('readwrite', s => s.put(p));
 const dbDel = id => tx('readwrite', s => s.delete(id));
-function save() { clearTimeout(saveT); saveT = setTimeout(async () => { if (!cur) return; cur.upd = Date.now(); await dbPut(cur); renderList(); }, 350); }
+function save() { clearTimeout(saveT); saveT = setTimeout(async () => { if (!cur) return; cur.upd = Date.now(); await dbPut(cur); renderList(); if (typeof refreshBadges === 'function') refreshBadges(); }, 350); }
 const newProject = () => ({ id: 'p' + Date.now(), upd: Date.now(), links: { site: '', facebook: '', instagram: '', autres: '', nom: '', type: '' }, fiche: null, logo: null, photos: [], fond: 0, notes: [] });
 
 /* ---------- messages / API ---------- */
@@ -126,12 +126,52 @@ function renderPhotos() {
   ph.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { const i = +b.dataset.rm; cur.photos.splice(i, 1); if (cur.fond >= cur.photos.length) cur.fond = 0; save(); renderPhotos(); });
   renderOut();
 }
+const PUB = ['intro', 'infos', 'galerie', 'carte', 'reservation'];
+const defProject = k => (slug() + '-' + k).toLowerCase();
+const projOf = k => ((cur.vp || {})[k] || defProject(k)).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
 function renderOut() {
   const o = $('#out'); if (!o) return; const f = cur.fiche, heb = f.type === 'hebergement', hasC = parseCarte(f.carteTxt).length;
   const items = [['intro', 'Intro', '5 s · iris · signature NovaVisio'], ['infos', 'Point Info', 'horaires, adresse, contact, services'], ['galerie', 'Galerie', cur.photos.length + ' photo(s) + lightbox', !cur.photos.length], ['carte', 'Carte', 'plats et prix', heb || !hasC], ['reservation', heb ? 'Réservation / demande' : 'Réservation', 'récap + appel / e-mail / Messenger', f.type === 'commerce'], ['boutons', 'Boutons glossy', '30 icônes × 3 états, 256 et 128 px']];
-  o.innerHTML = items.map(([k, n, d, off]) => `<div class="o" style="${off ? 'opacity:.45' : ''}"><b>${n}</b><small>${off ? 'Non disponible pour cette fiche' : d}</small><div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>Aperçu</button><button class="b s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button></div></div>`).join('');
+  o.innerHTML = items.map(([k, n, d, off]) => `<div class="o" style="${off ? 'opacity:.45' : ''}"><b>${n} <span class="bd" id="bd-${k}"></span></b><small>${off ? 'Non disponible pour cette fiche' : d}</small>
+   ${PUB.includes(k) && !off ? `<label style="margin:0;font-size:11px">Projet Vercel<input data-vp="${k}" value="${esc(projOf(k))}" style="margin-top:3px;padding:7px 9px;font-size:12.5px"></label>` : ''}
+   <div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>Aperçu</button><button class="b o s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button>${PUB.includes(k) && !off ? `<button class="b s" data-pub="${k}">🚀 Publier</button>` : ''}</div><div class="pl" id="pl-${k}"></div></div>`).join('');
   o.querySelectorAll('[data-pv]').forEach(b => b.onclick = () => preview(b.dataset.pv));
   o.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => download(b.dataset.dl, b));
+  o.querySelectorAll('[data-vp]').forEach(i => i.onchange = () => { cur.vp = cur.vp || {}; cur.vp[i.dataset.vp] = i.value.trim(); save(); });
+  o.querySelectorAll('[data-pub]').forEach(b => b.onclick = () => publish(b.dataset.pub, b));
+  refreshBadges();
+}
+/* empreinte d'une page : sert à savoir ce qui a changé depuis la dernière publication */
+const shaCache = new WeakMap();
+async function sha1(x) { const buf = typeof x === 'string' ? new TextEncoder().encode(x) : await x.arrayBuffer(); return [...new Uint8Array(await crypto.subtle.digest('SHA-1', buf))].map(v => v.toString(16).padStart(2, '0')).join(''); }
+async function entries(files) { const out = []; for (const [p, v] of Object.entries(files)) { let sha = typeof v === 'string' ? await sha1(v) : (shaCache.get(v) || (shaCache.set(v, await sha1(v)), shaCache.get(v))); out.push({ file: p, sha, size: typeof v === 'string' ? new TextEncoder().encode(v).length : v.size }); } return out.sort((a, b) => a.file < b.file ? -1 : 1); }
+const hashOf = es => es.map(e => e.file + ':' + e.sha).join('|');
+let bdT = 0;
+function refreshBadges() {
+  clearTimeout(bdT); bdT = setTimeout(async () => {
+    if (!cur || !cur.fiche || !$('#out')) return; const id = cur.id;
+    for (const k of PUB) {
+      const el = $('#bd-' + k); if (!el || !document.querySelector(`[data-pub="${k}"]`)) continue;
+      try {
+        const files = await make(k); if (!files || cur.id !== id) continue; const h = hashOf(await entries(files)), p = (cur.pub || {})[k];
+        el.className = 'bd ' + (!p ? 'n' : p.hash === h ? 'ok' : 'mod'); el.textContent = !p ? 'jamais publiée' : p.hash === h ? '✓ à jour' : '● modifiée';
+        const pl = $('#pl-' + k); if (pl && p) pl.innerHTML = `<small>Publiée le ${new Date(p.at).toLocaleString('fr-FR')} · <a href="${esc(p.url)}" target="_blank">${esc(p.url.replace('https://', ''))}</a></small>`;
+      } catch (e) { }
+    }
+  }, 600);
+}
+function b64(blob) { return new Promise(r => { const f = new FileReader(); f.onload = () => r(String(f.result).split(',')[1]); f.readAsDataURL(blob); }); }
+async function publish(k, btn) {
+  const name = projOf(k); if (!name) return alert('Donne un nom de projet Vercel.');
+  if (!confirm(`Publier « ${k} » sur le projet Vercel « ${name} » ?\nL'ancienne version de cette page sera remplacée (les autres pages ne changent pas).`)) return;
+  const t = btn.textContent; btn.disabled = true; const pl = $('#pl-' + k); const say = x => pl && (pl.innerHTML = '<small>' + x + '</small>');
+  try {
+    say('Préparation…'); const files = await make(k), es = await entries(files); let done = 0, i = 0;
+    await Promise.all(Array.from({ length: 4 }, async () => { while (i < es.length) { const e = es[i++]; const v = files[e.file]; await api('/api/publish', { mode: 'file', sha: e.sha, data: await b64(typeof v === 'string' ? new Blob([v]) : v) }); say(`Envoi ${++done}/${es.length}…`); } }));
+    say('Déploiement…'); const r = await api('/api/publish', { mode: 'deploy', project: name, files: es });
+    cur.pub = cur.pub || {}; cur.pub[k] = { hash: hashOf(es), at: Date.now(), project: name, url: r.url }; save();
+    say(`✅ Publiée : <a href="${esc(r.url)}" target="_blank">${esc(r.url.replace('https://', ''))}</a> (en ligne dans ~20 s)`); refreshBadges();
+  } catch (e) { say('<span style="color:#a1271b">' + esc(e.message) + '</span>'); } finally { btn.disabled = false; btn.textContent = t; }
 }
 
 /* ---------- liaisons ---------- */

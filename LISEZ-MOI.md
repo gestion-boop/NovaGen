@@ -15,3 +15,12 @@ Nouvel établissement → colle les liens (site, Facebook, Instagram…) → dé
 - La recherche dure 30 à 60 s. Si Vercel coupe avant (offre gratuite), relance : ça repart de ce qui est déjà saisi.
 - Facebook et Instagram sont souvent illisibles : l'outil se rabat sur le site, Tripadvisor, etc. Dépose logo et photos à la main si besoin.
 - Les ZIP se déposent tels quels sur Vercel, comme avant (`?visite=1` géré, 4 langues).
+
+## Publication directe sur Vercel (bouton 🚀 Publier)
+Ajoute dans Vercel → Settings → Environment Variables, puis redéploie :
+- `VERCEL_TOKEN` : crée-le sur vercel.com/account/tokens (nom : NovaGen, durée au choix).
+- `VERCEL_TEAM_ID` : l'identifiant de ton équipe (Settings de l'équipe → General → Team ID), si tes projets sont dans une équipe.
+- `VERCEL_PROTECTED` (facultatif) : noms de projets à ne jamais écraser, séparés par des virgules.
+
+Chaque page (intro, infos, galerie, carte, réservation) est un projet Vercel à part. Dans chaque carte, le champ « Projet Vercel » contient le nom du projet : mets le nom **exact** du projet déjà en ligne pour le mettre à jour, sinon un nouveau projet est créé.
+Le repère « ✓ à jour / ● modifiée / jamais publiée » indique ce qui a changé depuis la dernière publication.
