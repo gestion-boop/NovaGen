@@ -24,3 +24,8 @@ Ajoute dans Vercel → Settings → Environment Variables, puis redéploie :
 
 Chaque page (intro, infos, galerie, carte, réservation) est un projet Vercel à part. Dans chaque carte, le champ « Projet Vercel » contient le nom du projet : mets le nom **exact** du projet déjà en ligne pour le mettre à jour, sinon un nouveau projet est créé.
 Le repère « ✓ à jour / ● modifiée / jamais publiée » indique ce qui a changé depuis la dernière publication.
+
+## Sauvegarde serveur (Supabase)
+Les fiches, photos et logos sont copiés sur Supabase (projet « Site Novatour », table `novagen_projects`, bucket privé `novagen`) pour être retrouvés sur n'importe quel appareil.
+Variables Vercel à ajouter : `SUPABASE_URL` (https://kcqzpcupaunxqiynolqo.supabase.co) et `SUPABASE_SERVICE_KEY` (clé service_role, Project Settings → API Keys), puis redéployer.
+Le navigateur garde une copie locale ; au démarrage et au retour sur l'onglet, l'outil se resynchronise (dernier modifié gagne). Un « supprimer définitivement » efface aussi les fichiers sur le serveur.

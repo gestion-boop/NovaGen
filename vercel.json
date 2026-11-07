@@ -8,6 +8,9 @@
   },
   "api/publish.js": {
    "maxDuration": 30
+  },
+  "api/store.js": {
+   "maxDuration": 30
   }
  }
 }

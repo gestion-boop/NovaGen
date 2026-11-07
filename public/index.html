@@ -48,7 +48,7 @@ button.b:hover{filter:brightness(1.08)}button.b:disabled{opacity:.5;cursor:wait}
 @media(max-width:900px){.app{grid-template-columns:1fr}aside{position:static}.g3,.g4{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.g2,.g3,.g4{grid-template-columns:1fr}}
 </style></head><body>
-<header><b>NovaGen</b><span class="sub">Générateur de pages NovaTour</span><div id="sw"><input id="q" placeholder="🔎 Rechercher un établissement (nom, ville, téléphone…)" autocomplete="off"><div id="qr"></div></div></header>
+<header><b>NovaGen</b><span class="sub">Générateur de pages NovaTour</span><span class="sub" id="cl" style="font-size:12px;white-space:nowrap"></span><div id="sw"><input id="q" placeholder="🔎 Rechercher un établissement (nom, ville, téléphone…)" autocomplete="off"><div id="qr"></div></div></header>
 <div class="app">
  <aside><h3>Établissements</h3><div id="list"></div><button class="b" style="width:100%;margin-top:10px" id="new">+ Nouvel établissement</button></aside>
  <main id="main"></main>
@@ -57,4 +57,5 @@ button.b:hover{filter:brightness(1.08)}button.b:disabled{opacity:.5;cursor:wait}
 <script src="vendor/jszip.min.js"></script>
 <script src="gen.js"></script>
 <script src="app.js"></script>
+<script src="sync.js"></script>
 </body></html>

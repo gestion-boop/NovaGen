@@ -7,8 +7,10 @@ let cur = null, urls = [], saveT = 0, cityF = '';
 const idb = new Promise((ok, ko) => { const r = indexedDB.open('novagen', 1); r.onupgradeneeded = () => r.result.createObjectStore('p', { keyPath: 'id' }); r.onsuccess = () => ok(r.result); r.onerror = ko; });
 const tx = async (m, fn) => { const d = await idb; return new Promise((ok, ko) => { const t = d.transaction('p', m), q = fn(t.objectStore('p')); t.oncomplete = () => ok(q && q.result); t.onerror = ko; }); };
 const dbAll = () => tx('readonly', s => s.getAll());
-const dbPut = p => tx('readwrite', s => s.put(p));
-const dbDel = id => tx('readwrite', s => s.delete(id));
+const dbPutRaw = p => tx('readwrite', s => s.put(p));
+const dbPut = p => { const r = dbPutRaw(p); r.then(() => window.syncQueue && syncQueue(p)); return r; };
+const dbDelRaw = id => tx('readwrite', s => s.delete(id));
+const dbDel = id => { window.syncPurge && syncPurge(id); return dbDelRaw(id); };
 function save() { clearTimeout(saveT); saveT = setTimeout(async () => { if (!cur) return; cur.upd = Date.now(); await dbPut(cur); renderList(); if (typeof refreshBadges === 'function') refreshBadges(); }, 350); }
 const newProject = () => ({ id: 'p' + Date.now(), upd: Date.now(), links: { site: '', facebook: '', instagram: '', autres: '', nom: '', type: '' }, fiche: null, logo: null, photos: [], fond: 0, notes: [] });
 
