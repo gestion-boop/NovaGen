@@ -63,6 +63,18 @@ async function search(b) {
     const subs = await Promise.all(ex.links.slice(0, 4).map(async u => [u, await get(u)]));
     for (const [u, h] of subs) { if (!h) continue; const e2 = extract(h, u); photos.push(...e2.photos); logos.push(...e2.logos); text += '--- ' + u + '\n' + clean(h).slice(0, 4500) + '\n'; }
   }
+  let social = '';
+  for (const u of links.filter(x => /facebook\.com|instagram\.com/i.test(x)).slice(0, 2)) {
+    try {
+      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
+      const r = await fetch(u, { signal: ctl.signal, redirect: 'follow', headers: { 'user-agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)', 'accept-language': 'fr-FR,fr;q=0.9' } }); clearTimeout(tm);
+      const h = r.ok ? await r.text() : '';
+      const og = k => ((h.match(new RegExp('<meta[^>]+property=["\\\']og:' + k + '["\\\'][^>]+content=["\\\']([^"\\\']+)', 'i')) || [])[1] || '').replace(/&amp;/g, '&').replace(/&#x27;|&#039;/g, "'").replace(/&quot;/g, '"');
+      const img = og('image'); if (img) photos.push(img);
+      const t = [og('title'), og('description')].filter(Boolean).join(' — '); if (t) social += '--- ' + u + ' (aperçu public) : ' + t.slice(0, 600) + '\n';
+    } catch (e) { }
+  }
+  if (social) text += social;
   const uniq = a => [...new Set(a)];
   photos = uniq(photos).slice(0, 40); logos = uniq(logos).slice(0, 5);
   const prompt = `Tu prépares la fiche d'un établissement pour une visite virtuelle (NovaTour, Narbonne).

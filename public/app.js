@@ -62,8 +62,18 @@ async function logoIsLight(blob) {
 }
 const logoBg = p => p.logoLight ? (p.fiche?.c1 || '#26211F') : '#fff';
 async function addPhotos(files) {
-  let n = 0; for (const f of files) { try { const r = await toJpeg(f); if (Math.max(r.w, r.h) < 500) continue; cur.photos.push({ id: 'i' + Date.now() + n++, blob: r.blob }); } catch (e) { } }
-  save(); renderPhotos();
+  let n = 0, ok = 0; const list = [];
+  for (const f of files) {
+    if (/\.zip$/i.test(f.name || '') || f.type === 'application/zip') { try { const z = await JSZip.loadAsync(f); for (const e of Object.values(z.files)) if (!e.dir && /\.(jpe?g|png|webp|avif|gif)$/i.test(e.name) && !/__MACOSX/.test(e.name)) list.push(await e.async('blob')); } catch (e) { } }
+    else list.push(f);
+  }
+  for (const f of list) { try { const r = await toJpeg(f); if (Math.max(r.w, r.h) < 500) continue; cur.photos.push({ id: 'i' + Date.now() + n++, blob: r.blob }); ok++; } catch (e) { } }
+  save(); renderPhotos(); return ok;
+}
+async function addPhotoUrls(txt) {
+  const urls = [...new Set(String(txt).split(/\s+/).filter(u => /^https?:\/\//i.test(u)))]; let ok = 0;
+  for (const u of urls) { try { const bl = await api('/api/img?u=' + encodeURIComponent(u), null, true), r = await toJpeg(bl); if (Math.max(r.w, r.h) < 400) continue; cur.photos.push({ id: 'i' + Date.now() + ok, blob: r.blob }); ok++; } catch (e) { } }
+  save(); renderPhotos(); return [ok, urls.length];
 }
 async function setLogo(blob) { cur.logo = await toPng(blob); cur.logoLight = await logoIsLight(cur.logo); if (!cur.fiche?._colorsSet) { const d = await dominant(cur.logo); if (d && cur.fiche) Object.assign(cur.fiche, d); } save(); render(); }
 
@@ -114,7 +124,8 @@ function ficheHtml(f) {
    <label>Titres<select data-f="police"><option value="serif" ${f.police !== 'sans' ? 'selected' : ''}>Élégant (serif + script)</option><option value="sans" ${f.police === 'sans' ? 'selected' : ''}>Moderne (Montserrat gras)</option></select></label></div>
    <div class="g2"><label>Forme du logo<select data-f="logoForme"><option value="libre" ${f.logoForme !== 'rond' ? 'selected' : ''}>Libre (logo tel quel)</option><option value="rond" ${f.logoForme === 'rond' ? 'selected' : ''}>Rond (cadre doré)</option></select></label><div style="padding-top:22px"><button class="b o s" id="fromlogo">🎨 Couleurs depuis le logo</button></div></div></div>
   <div class="card"><h2><i>4</i> Photos <small style="font-weight:400;color:var(--mu)" id="pc"></small></h2><p class="hint">★ = photo de fond de l'intro. ✕ = retirer. Tu peux en déposer d'autres.</p>
-   <div class="drop" id="phd">Glisser des photos ici ou cliquer pour en ajouter<input type="file" id="phf" accept="image/*" multiple hidden></div><div class="ph" id="ph"></div></div>
+   <div class="drop" id="phd">Glisser des photos (ou un ZIP de photos) ici, ou cliquer. Tu peux aussi coller des images avec Cmd+V.<input type="file" id="phf" accept="image/*,.zip" multiple hidden></div>
+   <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--b1)">Importer depuis des liens d'images (Facebook, Instagram, site…)</summary><p class="hint" style="margin:8px 0">Sur Facebook : clic droit sur une photo → « Copier l'adresse de l'image », puis colle les adresses ici (une par ligne ou séparées par un espace).</p><textarea id="pu" rows="4" placeholder="https://scontent…"></textarea><div class="row" style="margin-top:8px"><button class="b o s" id="pub2">Importer ces liens</button><span class="hint" id="pm" style="margin:0"></span></div></details><div class="ph" id="ph"></div></div>
   <div class="card"><h2><i>5</i> Générer</h2><p class="hint">Chaque ZIP se téléverse tel quel sur Vercel. Aperçu = exactement ce qui sera dans le ZIP.</p><div class="out" id="out"></div>
    <div class="row" style="margin-top:14px"><button class="b" id="all">⬇ Tout télécharger (ZIP séparés)</button></div><div id="msg2"></div></div>`;
 }
@@ -187,6 +198,7 @@ function bind() {
   $('[data-sv]').oninput = e => { const old = Object.fromEntries((f.services || []).map(s => [s.fr, s])); f.services = e.target.value.split('\n').map(x => x.trim()).filter(Boolean).map(x => old[x] || { fr: x, es: x, de: x, en: x }); save(); };
   $('#fromlogo').onclick = async () => { if (!cur.logo) return alert('Dépose d\'abord un logo.'); const d = await dominant(cur.logo); if (!d) return alert('Logo trop neutre : choisis les couleurs à la main.'); Object.assign(f, d); save(); render(); };
   const phd = $('#phd'), phf = $('#phf'); phd.onclick = () => phf.click(); phf.onchange = () => addPhotos([...phf.files]);
+  $('#pub2').onclick = async () => { const b = $('#pub2'); b.disabled = true; $('#pm').textContent = 'Import…'; const [ok, n] = await addPhotoUrls($('#pu').value); $('#pm').textContent = `${ok} photo(s) importée(s) sur ${n} lien(s)` + (ok < n ? ' — certains liens expirent vite : recopie-les juste avant.' : ''); b.disabled = false; if (ok) $('#pu').value = ''; };
   phd.ondragover = e => { e.preventDefault(); phd.classList.add('h'); }; phd.ondragleave = () => phd.classList.remove('h'); phd.ondrop = e => { e.preventDefault(); phd.classList.remove('h'); addPhotos([...e.dataTransfer.files]); };
   $('#all').onclick = downloadAll;
   $('#cs').onclick = sendChat; $('#ci').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
@@ -251,7 +263,7 @@ async function search() {
     const pool = (r.photos || []).slice(0, 36); let n = 0, i = 0;
     await Promise.all(Array.from({ length: 4 }, async () => { while (i < pool.length && cur.photos.length < 24) { const u = pool[i++]; try { const bl = await api('/api/img?u=' + encodeURIComponent(u), null, true), p = await toJpeg(bl); if (Math.max(p.w, p.h) < 600) continue; cur.photos.push({ id: 'i' + Date.now() + (n++), blob: p.blob }); } catch (e) { } } }));
     if (cur.logo && !cur.fiche._colorsSet && !x.c2) { const d = await dominant(cur.logo); if (d) Object.assign(cur.fiche, d); }
-    save(); render(); msg(`Terminé : ${cur.photos.length} photo(s)${cur.logo ? ', logo trouvé' : ', pas de logo (dépose-le ci-dessus)'}. Vérifie la fiche.`, 'k');
+    save(); render(); msg(cur.photos.length ? `Terminé : ${cur.photos.length} photo(s)${cur.logo ? ', logo trouvé' : ', pas de logo (dépose-le ci-dessus)'}. Vérifie la fiche.` : 'Fiche créée, mais aucune photo récupérée automatiquement (le site n\'en expose pas, et Facebook / Instagram bloquent les robots). Ajoute-les dans « 4 Photos » : glisser-déposer, Cmd+V, ZIP ou liens d\'images.', cur.photos.length ? 'k' : 'i');
   } catch (e) { render(); msg(e.message, 'e'); } finally { const g = $('#go'); if (g) g.disabled = false; }
 }
 
@@ -370,3 +382,5 @@ function openFinder(pre = '') {
   q.onkeydown = e => { if (e.key === 'Enter') run(false); if (e.key === 'Escape') close(); };
   if (pre.length > 2) run(false);
 }
+
+document.addEventListener('paste', e => { if (!cur || !cur.fiche) return; const fs = [...(e.clipboardData?.files || [])].filter(f => /^image\//.test(f.type)); if (fs.length) { e.preventDefault(); addPhotos(fs); } });
