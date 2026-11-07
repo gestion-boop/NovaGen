@@ -77,17 +77,40 @@ async function addPhotoUrls(txt) {
 }
 async function setLogo(blob) { cur.logo = await toPng(blob); cur.logoLight = await logoIsLight(cur.logo); if (!cur.fiche?._colorsSet) { const d = await dominant(cur.logo); if (d && cur.fiche) Object.assign(cur.fiche, d); } save(); render(); }
 
+/* ---------- suppression : confirmation en tapant « supprimer », puis corbeille 30 jours ---------- */
+function askDelete(p, done) {
+  if (!p) return; document.getElementById('dm')?.remove();
+  const nom = p.fiche?.nom || p.links?.nom || p.links?.site || 'cet établissement';
+  const d = document.createElement('div'); d.id = 'dm'; d.style.cssText = 'position:fixed;inset:0;background:rgba(10,18,30,.7);display:flex;align-items:center;justify-content:center;z-index:70;padding:16px';
+  d.innerHTML = `<div class="card" style="width:min(440px,100%)"><h2>🗑 Supprimer « ${esc(nom)} » ?</h2><p class="hint">Il part dans la corbeille et reste récupérable pendant 30 jours. Pour confirmer, écris <b>supprimer</b>.</p><input id="dmi" autocomplete="off" placeholder="supprimer"><div class="row" style="margin-top:14px;justify-content:flex-end"><button class="b o" id="dmx">Annuler</button><button class="b" id="dmo" disabled style="background:#c23a2b">Supprimer</button></div></div>`;
+  document.body.appendChild(d); const i = d.querySelector('#dmi'), ok = d.querySelector('#dmo'); i.focus();
+  const go = () => { if (norm(i.value.trim()) !== 'supprimer') return; d.remove(); done(p); };
+  i.oninput = () => ok.disabled = norm(i.value.trim()) !== 'supprimer';
+  i.onkeydown = e => { if (e.key === 'Enter') go(); if (e.key === 'Escape') d.remove(); };
+  ok.onclick = go; d.querySelector('#dmx').onclick = () => d.remove(); d.onclick = e => { if (e.target === d) d.remove(); };
+}
+
 /* ---------- rendu ---------- */
 function renderList() {
-  dbAll().then(all => {
+  dbAll().then(everything => {
+    const LIM = 30 * 864e5, now = Date.now();
+    everything.filter(p => p.del && now - p.del > LIM).forEach(p => dbDel(p.id));
+    const trash = everything.filter(p => p.del && now - p.del <= LIM).sort((a, b) => b.del - a.del), all = everything.filter(p => !p.del);
     all.sort((a, b) => b.upd - a.upd);
     all.filter(p => p.logo && p.logoLight === undefined).forEach(async p => { p.logoLight = await logoIsLight(p.logo); await dbPut(p); if (cur && cur.id === p.id) cur.logoLight = p.logoLight; renderList(); });
     const vs = [...new Set(all.map(p => p.fiche?.ville || p.links?.ville).filter(Boolean))].sort(); if (cityF && !vs.includes(cityF)) cityF = '';
     const shown = cityF ? all.filter(p => (p.fiche?.ville || p.links?.ville) === cityF) : all;
     $('#list').innerHTML = (vs.length > 1 ? `<select id="cf" style="margin:0 0 8px"><option value="">Toutes les villes (${all.length})</option>${vs.map(v => `<option ${v === cityF ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : '') + shown.map(p => `<div class="pj ${cur && cur.id === p.id ? 'on' : ''}" data-id="${p.id}">${p.logo ? `<img src="${URL.createObjectURL(p.logo)}" style="background:${logoBg(p)}">` : '<img>'}<div>${esc(p.fiche?.nom || p.links.nom || p.links.site || 'Nouveau')}<small>${esc(p.fiche?.ville || '')}</small></div><button class="x" data-del="${p.id}" title="Supprimer">✕</button></div>`).join('') || '<div class="hint" style="padding:6px">Aucun pour le moment.</div>';
+    const tr = document.getElementById('trash'); if (tr) tr.remove();
+    if (trash.length) { const d = document.createElement('div'); d.id = 'trash'; d.style.cssText = 'margin-top:14px;border-top:1px solid var(--line);padding-top:10px';
+      d.innerHTML = `<details ${window.__tOpen ? 'open' : ''}><summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--mu)">🗑 Corbeille (${trash.length}) — gardée 30 jours</summary>${trash.map(p => { const j = Math.max(0, 30 - Math.floor((now - p.del) / 864e5)); return `<div style="display:flex;align-items:center;gap:6px;padding:7px 2px;font-size:13px"><div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.fiche?.nom || p.links?.nom || p.links?.site || 'Sans nom')}</div><small style="color:var(--mu)">${j} jour(s) restant(s)</small></div><button class="b o s" data-rest="${p.id}">Restaurer</button><button class="x" data-purge="${p.id}" title="Supprimer définitivement" style="border:0;background:none;cursor:pointer;color:var(--mu);font-size:15px">✕</button></div>`; }).join('')}</details>`;
+      $('#list').after(d); d.querySelector('details').ontoggle = e => window.__tOpen = e.target.open;
+      d.querySelectorAll('[data-rest]').forEach(b => b.onclick = async () => { const p = trash.find(x => x.id === b.dataset.rest); delete p.del; p.upd = Date.now(); await dbPut(p); cur = p; renderList(); render(); });
+      d.querySelectorAll('[data-purge]').forEach(b => b.onclick = async () => { const p = trash.find(x => x.id === b.dataset.purge); if (confirm('Supprimer définitivement « ' + (p.fiche?.nom || p.links?.nom || 'cet établissement') + ' » ? Cette action est irréversible.')) { await dbDel(p.id); renderList(); } });
+    }
     const cf = $('#cf'); if (cf) cf.onchange = () => { cityF = cf.value; renderList(); };
     document.querySelectorAll('.pj').forEach(e => e.onclick = async ev => {
-      if (ev.target.dataset.del) { if (confirm('Supprimer cet établissement ?')) { await dbDel(ev.target.dataset.del); if (cur && cur.id === ev.target.dataset.del) cur = null; renderList(); render(); } return; }
+      if (ev.target.dataset.del) { askDelete(all.find(p => p.id === ev.target.dataset.del), async p => { p.del = Date.now(); await dbPut(p); if (cur && cur.id === p.id) cur = all.find(x => x.id !== p.id) || null; renderList(); render(); }); return; }
       cur = all.find(p => p.id === e.dataset.id); render(); renderList();
     });
   });
@@ -395,7 +418,7 @@ async function preview(k) {
 }
 $('#mc').onclick = () => { $('#modal').classList.remove('on'); $('#mb').innerHTML = ''; };
 $('#new').onclick = () => openFinder();
-(async () => { const all = await dbAll(); all.sort((a, b) => b.upd - a.upd); cur = all[0] || null; renderList(); render(); })();
+(async () => { const all = (await dbAll()).filter(p => !p.del); all.sort((a, b) => b.upd - a.upd); cur = all[0] || null; renderList(); render(); })();
 
 /* ---------- création depuis des liens collés (Facebook, Instagram, site, Google Maps…) ---------- */
 const urlsIn = v => (String(v).match(/https?:\/\/[^\s,;]+/gi) || []);
@@ -410,7 +433,7 @@ async function fromLinks(v, ville = '') {
 const norm = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 async function runSearch() {
   const v = $('#q').value.trim(), box = $('#qr'); if (!v) { box.className = ''; return; }
-  const all = await dbAll(), k = norm(v);
+  const all = (await dbAll()).filter(p => !p.del), k = norm(v);
   const hit = all.filter(p => norm([p.fiche?.nom, p.fiche?.ville, p.fiche?.adresse, p.fiche?.tel, p.fiche?.site, p.links?.nom, p.links?.site, p.links?.facebook, p.links?.instagram].join(' ')).includes(k)).sort((a, b) => b.upd - a.upd).slice(0, 6);
   box.innerHTML = hit.map(p => `<div data-id="${p.id}">📍 <b>${esc(p.fiche?.nom || p.links.nom || p.links.site || 'Sans nom')}</b><small>${esc(p.fiche?.ville || '')}</small></div>`).join('') + `<div data-new="1">＋ Nouvel établissement : <b>${esc(v)}</b></div>`;
   box.className = 'on'; box.firstChild.classList.add('sel');
