@@ -10,6 +10,16 @@ module.exports = async (req, res) => {
     if (process.env.APP_PASSWORD && req.headers['x-pass'] !== process.env.APP_PASSWORD) return res.status(401).json({ error: 'Mot de passe incorrect' });
     if (!process.env.VERCEL_TOKEN) return res.status(500).json({ error: 'VERCEL_TOKEN manquant dans Vercel (Settings → Environment Variables). Crée-le sur vercel.com/account/tokens.' });
     const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    if (b.mode === 'projects') {
+      const r = await fetch(V + '/v10/projects' + team() + (team() ? '&' : '?') + 'limit=100', { headers: head() }), j = await r.json().catch(() => ({}));
+      if (!r.ok) return res.status(502).json({ error: 'Liste des projets Vercel indisponible : ' + (j.error?.message || r.status) });
+      return res.json({ projects: (j.projects || []).map(p => { const al = (p.targets?.production?.alias || []).filter(Boolean); return { name: p.name, domain: al.find(a => !/\.vercel\.app$/.test(a)) || al[0] || p.name + '.vercel.app' }; }) });
+    }
+    if (b.mode === 'status') {
+      if (!/^dpl_[\w]+$/.test(String(b.id || ''))) return res.status(400).json({ error: 'id invalide' });
+      const r = await fetch(V + '/v13/deployments/' + b.id + team(), { headers: head() }), j = await r.json().catch(() => ({}));
+      return res.json({ state: j.readyState || j.status || '?', error: j.errorMessage || '' });
+    }
     if (b.mode === 'file') {
       const buf = Buffer.from(String(b.data || ''), 'base64'), sha = crypto.createHash('sha1').update(buf).digest('hex');
       if (sha !== b.sha) return res.status(400).json({ error: 'Fichier corrompu pendant le transfert' });

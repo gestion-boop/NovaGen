@@ -139,16 +139,23 @@ function renderPhotos() {
 }
 const PUB = ['intro', 'infos', 'galerie', 'carte', 'reservation'];
 const defProject = k => (slug() + '-' + k).toLowerCase();
-const projOf = k => ((cur.vp || {})[k] || defProject(k)).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
+let vproj = null, vperr = '', vload = false;
+const KW = { intro: ['intro'], infos: ['info', 'point'], galerie: ['galerie', 'gallery', 'photo'], carte: ['carte', 'menu'], reservation: ['resa', 'reserv', 'book'] };
+function guess(k) { if (!vproj) return defProject(k); const s = slug().toLowerCase(), m = vproj.filter(p => p.name.replace(/-|et/g, '').includes(s.replace(/et/g, '')) && KW[k].some(w => p.name.includes(w))); return m.length === 1 ? m[0].name : defProject(k); }
+async function loadProjects() { if (vload) return; vload = true; try { vproj = (await api('/api/publish', { mode: 'projects' })).projects || []; } catch (e) { vproj = []; vperr = e.message; } if ($('#out')) renderOut(); }
+const projOf = k => ((cur.vp || {})[k] || guess(k)).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
 function renderOut() {
   const o = $('#out'); if (!o) return; const f = cur.fiche, heb = f.type === 'hebergement', hasC = parseCarte(f.carteTxt).length;
   const items = [['intro', 'Intro', '5 s · iris · signature NovaVisio'], ['infos', 'Point Info', 'horaires, adresse, contact, services'], ['galerie', 'Galerie', cur.photos.length + ' photo(s) + lightbox', !cur.photos.length], ['carte', 'Carte', 'plats et prix', heb || !hasC], ['reservation', heb ? 'Réservation / demande' : 'Réservation', 'récap + appel / e-mail / Messenger', f.type === 'commerce'], ['boutons', 'Boutons glossy', '30 icônes × 3 états, 256 et 128 px']];
   o.innerHTML = items.map(([k, n, d, off]) => `<div class="o" style="${off ? 'opacity:.45' : ''}"><b>${n} <span class="bd" id="bd-${k}"></span></b><small>${off ? 'Non disponible pour cette fiche' : d}</small>
-   ${PUB.includes(k) && !off ? `<label style="margin:0;font-size:11px">Projet Vercel<input data-vp="${k}" value="${esc(projOf(k))}" style="margin-top:3px;padding:7px 9px;font-size:12.5px"></label>` : ''}
-   <div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>Aperçu</button><button class="b o s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button>${PUB.includes(k) && !off ? `<button class="b s" data-pub="${k}">🚀 Publier</button>` : ''}</div><div class="pl" id="pl-${k}"></div></div>`).join('');
+   ${PUB.includes(k) && !off ? `<label style="margin:0;font-size:11px">Projet Vercel à mettre à jour<input data-vp="${k}" list="vpl" value="${esc(projOf(k))}" style="margin-top:3px;padding:7px 9px;font-size:12.5px"></label><div class="vs" id="vs-${k}"></div>` : ''}
+   <div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>Aperçu</button><button class="b o s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button>${PUB.includes(k) && !off ? `<button class="b s" data-pub="${k}">🚀 Déployer</button>` : ''}</div><div class="pl" id="pl-${k}"></div></div>`).join('');
   o.querySelectorAll('[data-pv]').forEach(b => b.onclick = () => preview(b.dataset.pv));
   o.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => download(b.dataset.dl, b));
-  o.querySelectorAll('[data-vp]').forEach(i => i.onchange = () => { cur.vp = cur.vp || {}; cur.vp[i.dataset.vp] = i.value.trim(); save(); });
+  o.insertAdjacentHTML('beforeend', `<datalist id="vpl">${(vproj || []).map(p => `<option value="${esc(p.name)}">${esc(p.domain)}</option>`).join('')}</datalist>`);
+  const vst = k => { const el = $('#vs-' + k); if (!el) return; const n = projOf(k), pr = (vproj || []).find(p => p.name === n); el.innerHTML = vproj === null ? '' : vperr ? `<span style="color:#8a5a00">⚠ Liste des projets indisponible (${esc(vperr)})</span>` : pr ? `<span style="color:#1b6b37">✓ Projet existant : ${esc(pr.domain)}</span>` : '<span style="color:#a1271b">⚠ Ce projet n\'existe pas : un NOUVEAU projet sera créé</span>'; };
+  o.querySelectorAll('[data-vp]').forEach(i => { i.onchange = () => { cur.vp = cur.vp || {}; cur.vp[i.dataset.vp] = i.value.trim(); save(); vst(i.dataset.vp); }; vst(i.dataset.vp); });
+  loadProjects();
   o.querySelectorAll('[data-pub]').forEach(b => b.onclick = () => publish(b.dataset.pub, b));
   refreshBadges();
 }
@@ -166,7 +173,7 @@ function refreshBadges() {
       try {
         const files = await make(k); if (!files || cur.id !== id) continue; const h = hashOf(await entries(files)), p = (cur.pub || {})[k];
         el.className = 'bd ' + (!p ? 'n' : p.hash === h ? 'ok' : 'mod'); el.textContent = !p ? 'jamais publiée' : p.hash === h ? '✓ à jour' : '● modifiée';
-        const pl = $('#pl-' + k); if (pl && p) pl.innerHTML = `<small>Publiée le ${new Date(p.at).toLocaleString('fr-FR')} · <a href="${esc(p.url)}" target="_blank">${esc(p.url.replace('https://', ''))}</a></small>`;
+        const pl = $('#pl-' + k); if (pl && p && !pl.dataset.live) pl.innerHTML = `<small>Publiée le ${new Date(p.at).toLocaleString('fr-FR')} · <a href="${esc(p.url)}" target="_blank">${esc(p.url.replace('https://', ''))}</a></small>`;
       } catch (e) { }
     }
   }, 600);
@@ -174,14 +181,21 @@ function refreshBadges() {
 function b64(blob) { return new Promise(r => { const f = new FileReader(); f.onload = () => r(String(f.result).split(',')[1]); f.readAsDataURL(blob); }); }
 async function publish(k, btn) {
   const name = projOf(k); if (!name) return alert('Donne un nom de projet Vercel.');
-  if (!confirm(`Publier « ${k} » sur le projet Vercel « ${name} » ?\nL'ancienne version de cette page sera remplacée (les autres pages ne changent pas).`)) return;
+  const pr = (vproj || []).find(p => p.name === name);
+  if (!confirm(pr ? `Mettre à jour « ${k} » ?\n\nProjet Vercel : ${name}\nAdresse en ligne : ${pr.domain}\n\nL'ancienne version de cette page sera remplacée. Les autres pages ne changent pas. (Retour arrière possible dans Vercel → Deployments.)` : `⚠ Le projet « ${name} » n'existe pas sur ton Vercel.\n\nUn NOUVEAU projet va être créé : la visite immersive ne sera PAS mise à jour.\nContinuer quand même ?`)) return;
   const t = btn.textContent; btn.disabled = true; const pl = $('#pl-' + k); const say = x => pl && (pl.innerHTML = '<small>' + x + '</small>');
   try {
     say('Préparation…'); const files = await make(k), es = await entries(files); let done = 0, i = 0;
     await Promise.all(Array.from({ length: 4 }, async () => { while (i < es.length) { const e = es[i++]; const v = files[e.file]; await api('/api/publish', { mode: 'file', sha: e.sha, data: await b64(typeof v === 'string' ? new Blob([v]) : v) }); say(`Envoi ${++done}/${es.length}…`); } }));
     say('Déploiement…'); const r = await api('/api/publish', { mode: 'deploy', project: name, files: es });
-    cur.pub = cur.pub || {}; cur.pub[k] = { hash: hashOf(es), at: Date.now(), project: name, url: r.url }; save();
-    say(`✅ Publiée : <a href="${esc(r.url)}" target="_blank">${esc(r.url.replace('https://', ''))}</a> (en ligne dans ~20 s)`); refreshBadges();
+    cur.pub = cur.pub || {}; cur.pub[k] = { hash: hashOf(es), at: Date.now(), project: name, url: pr ? 'https://' + pr.domain : r.url }; save();
+    let st = r.state || '', t0 = Date.now(), err = '';
+    while (!/^(READY|ERROR|CANCELED)$/.test(st) && Date.now() - t0 < 70000) { say('Mise en ligne… (' + (st || 'en attente') + ')'); await new Promise(x => setTimeout(x, 3000)); try { const q = await api('/api/publish', { mode: 'status', id: r.id }); st = q.state; err = q.error; } catch (e) { } }
+    const live = pr ? pr.domain : r.url.replace('https://', '');
+    if (st === 'READY') { pl.dataset.live = '1'; say(`✅ En ligne : <a href="https://${esc(live)}" target="_blank">${esc(live)}</a> — vérifie avec <a href="https://${esc(live)}/?visite=1" target="_blank">?visite=1</a>`); }
+    else if (st === 'ERROR' || st === 'CANCELED') { delete cur.pub[k]; save(); say('<span style="color:#a1271b">❌ Échec du déploiement : ' + esc(err || st) + '</span>'); }
+    else say('⏳ Déploiement lancé, toujours en cours : vérifie dans Vercel → Deployments.');
+    refreshBadges();
   } catch (e) { say('<span style="color:#a1271b">' + esc(e.message) + '</span>'); } finally { btn.disabled = false; btn.textContent = t; }
 }
 
