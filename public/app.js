@@ -178,12 +178,35 @@ function ficheHtml(f) {
   <div class="card"><h2><i>5</i> Générer</h2><p class="hint">Chaque ZIP se téléverse tel quel sur Vercel. Aperçu = exactement ce qui sera dans le ZIP.</p><div class="out" id="out"></div>
    <div class="row" style="margin-top:14px"><button class="b" id="all">⬇ Tout télécharger (ZIP séparés)</button></div><div id="msg2"></div></div>`;
 }
+/* ---------- doublons : même image (même en taille différente) ---------- */
+async function dhash(blob) {
+  const bm = await createImageBitmap(blob), c = document.createElement('canvas'); c.width = 9; c.height = 8;
+  const x = c.getContext('2d'); x.drawImage(bm, 0, 0, 9, 8); bm.close && bm.close();
+  const d = x.getImageData(0, 0, 9, 8).data, g = i => d[i * 4] * .3 + d[i * 4 + 1] * .59 + d[i * 4 + 2] * .11; let h = '';
+  for (let r = 0; r < 8; r++) for (let q = 0; q < 8; q++) h += g(r * 9 + q) > g(r * 9 + q + 1) ? '1' : '0';
+  return h;
+}
+let dedupBusy = false;
+async function dedupePhotos() {
+  if (dedupBusy || !cur || cur.photos.length < 2) return 0; dedupBusy = true;
+  try {
+    for (const p of cur.photos) if (!p.h) { try { p.h = await dhash(p.blob); } catch (e) { p.h = 'x' + p.id; } }
+    const keep = [], fondId = cur.photos[cur.fond] && cur.photos[cur.fond].id; let rem = 0;
+    for (const p of cur.photos) {
+      const j = keep.findIndex(k => k.h.length === 64 && p.h.length === 64 && [...k.h].filter((c, i) => c !== p.h[i]).length <= 5);
+      if (j < 0) keep.push(p); else { rem++; if (p.blob.size > keep[j].blob.size) { if (fondId === keep[j].id) cur.fond = -1; keep[j] = p; } }
+    }
+    if (rem) { const fi = keep.findIndex(p => p.id === fondId); cur.photos = keep; cur.fond = fi >= 0 ? fi : 0; save(); }
+    return rem;
+  } finally { dedupBusy = false; }
+}
 function renderPhotos() {
   const ph = $('#ph'); if (!ph) return; urls.forEach(URL.revokeObjectURL); urls = [];
   ph.innerHTML = cur.photos.map((p, i) => { const u = URL.createObjectURL(p.blob); urls.push(u); return `<div><img src="${u}"><button class="f ${cur.fond === i ? 'on' : ''}" data-fond="${i}">★</button><button class="d" data-rm="${i}">✕</button></div>`; }).join('');
   $('#pc').textContent = `(${cur.photos.length})`;
   ph.querySelectorAll('[data-fond]').forEach(b => b.onclick = () => { cur.fond = +b.dataset.fond; save(); renderPhotos(); });
   ph.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { const i = +b.dataset.rm; cur.photos.splice(i, 1); if (cur.fond >= cur.photos.length) cur.fond = 0; save(); renderPhotos(); });
+  dedupePhotos().then(n => { if (n) { renderPhotos(); const m = $('#msg'); if (m) { m.className = 'on i'; m.textContent = n + ' doublon(s) supprimé(s).'; } } });
   renderOut();
 }
 const PUB = ['intro', 'infos', 'galerie', 'carte', 'reservation'];
