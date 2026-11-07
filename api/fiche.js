@@ -102,12 +102,45 @@ async function translate(b) {
   return jsonOf(textOf(j));
 }
 
+
+const PATCH_KEYS = ['nom', 'ville', 'type', 'slogan', 'description', 'adresse', 'tel', 'email', 'site', 'facebook', 'instagram', 'booking', 'horaires', 'services', 'carteTxt', 'c1', 'c2', 'c3', 'police', 'logoForme'];
+async function assist(b) {
+  const hist = (b.history || []).map(m => (m.r === 'u' ? 'Utilisateur : ' : 'Assistant : ') + String(m.t || '').slice(0, 400)).join('\n');
+  const prompt = `Tu es l'assistant intégré à NovaGen, l'outil de Sylvain (NovaVisio / NovaTour) qui génère les pages d'une visite virtuelle (intro, infos, galerie, carte, réservation, boutons) pour UN établissement.
+Fiche actuelle (JSON, texte en français) :
+${JSON.stringify(b.fiche)}
+Photos : ${b.nbPhotos} (numérotées à partir de 1). Photo de fond de l'intro : n°${(b.fond || 0) + 1}.
+${hist ? 'Échanges récents :\n' + hist + '\n' : ''}
+Demande : ${b.instruction}
+
+Réponds UNIQUEMENT par un objet JSON valide :
+{"message":"réponse courte en français : ce que tu as fait, ou ta question, ou ce que tu n'as pas trouvé","patch":{ champs modifiés uniquement },"actions":[{"type":"remove_photo","n":3},{"type":"set_fond","n":2}]}
+Règles :
+- patch : clés autorisées = ${PATCH_KEYS.join(', ')}. slogan et description = texte français simple ; services = tableau de textes français ; horaires = tableau de 7 textes (lundi→dimanche, ex. "12h–14h · 19h–22h" ou "Fermé") ; c1/c2/c3 = couleurs #hex ; type = restaurant | hebergement | commerce ; police = serif | sans ; logoForme = libre | rond.
+- Pour modifier la carte, renvoie la carte COMPLÈTE dans carteTxt, au format : lignes "# Catégorie" puis "Plat | prix | description" (en reprenant ce qui existe déjà et en appliquant le changement).
+- actions : seulement si la demande concerne les photos (remove_photo, set_fond). Sinon tableau vide.
+- N'invente aucune donnée (prix, horaires, téléphone). Si une info manque, demande-la dans "message" sans modifier. N'utilise la recherche web que si la demande l'exige (vérifier ou trouver une information).
+- Ne modifie que ce qui est demandé.`;
+  const messages = [{ role: 'user', content: prompt }];
+  let j;
+  for (let i = 0; i < 3; i++) {
+    j = await claude({ model: MODEL(), max_tokens: 8000, messages, tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }] });
+    if (j.stop_reason !== 'pause_turn') break;
+    messages.push({ role: 'assistant', content: j.content });
+  }
+  const txt = textOf(j);
+  let r; try { r = jsonOf(txt); } catch (e) { return { message: txt.trim().slice(0, 600) || 'Je n\'ai pas pu traiter la demande.', patch: {}, actions: [] }; }
+  const patch = {}; for (const k of PATCH_KEYS) if (r.patch && k in r.patch) patch[k] = r.patch[k];
+  return { message: r.message || 'Fait.', patch, actions: Array.isArray(r.actions) ? r.actions.filter(a => a && /^(remove_photo|set_fond)$/.test(a.type)) : [] };
+}
+
 module.exports = async (req, res) => {
   try {
     if (process.env.APP_PASSWORD && req.headers['x-pass'] !== process.env.APP_PASSWORD) return res.status(401).json({ error: 'Mot de passe incorrect' });
     const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     if (b.mode === 'ping') return res.json({ ok: true, key: !!process.env.ANTHROPIC_API_KEY });
     if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY manquante dans Vercel (Settings → Environment Variables).' });
+    if (b.mode === 'assist') return res.json(await assist(b));
     if (b.mode === 'translate') return res.json(await translate(b));
     return res.json(await search(b));
   } catch (e) { res.status(500).json({ error: String(e.message || e) }); }

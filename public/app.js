@@ -80,7 +80,7 @@ function renderList() {
   });
 }
 function render() {
-  const m = $('#main');
+  const m = $('#main'); if (!cur || !cur.fiche) undo = null;
   if (!cur) { m.innerHTML = '<div class="card empty"><h2 style="justify-content:center">Bienvenue dans NovaGen</h2><p class="hint">Crée un établissement : colle ses liens, dépose le logo, et récupère les ZIP.</p><button class="b" id="n2">+ Nouvel établissement</button></div>'; $('#n2').onclick = () => $('#new').click(); return; }
   const L = cur.links, f = cur.fiche;
   m.innerHTML = `
@@ -96,7 +96,7 @@ function render() {
 function ficheHtml(f) {
   const nt = (cur.notes || []).length ? `<div class="notes"><b>À confirmer</b>${cur.notes.map(n => '• ' + esc(n)).join('<br>')}</div>` : '';
   const v = (k, lab, ph = '') => `<label>${lab}<input data-f="${k}" value="${esc(f[k] || '')}" placeholder="${ph}"></label>`;
-  return `<div class="card"><h2><i>2</i> Fiche — vérifie et corrige</h2><p class="hint">Tout est modifiable. Les modifications sont enregistrées automatiquement.</p>${nt}
+  return chatHtml() + `<div class="card"><h2><i>2</i> Fiche — vérifie et corrige</h2><p class="hint">Tout est modifiable. Les modifications sont enregistrées automatiquement.</p>${nt}
    <div class="g3">${v('nom', 'Nom')}${v('ville', 'Ville')}<label>Type<select data-f="type">${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement'], ['commerce', 'Commerce / autre']].map(([x, n]) => `<option value="${x}" ${f.type === x ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
    <label>Accroche courte (sous le nom)<input data-s="slogan" value="${esc(f.slogan?.fr || '')}"></label>
    <label>Description<textarea data-s="description">${esc(f.description?.fr || '')}</textarea></label>
@@ -146,6 +146,44 @@ function bind() {
   const phd = $('#phd'), phf = $('#phf'); phd.onclick = () => phf.click(); phf.onchange = () => addPhotos([...phf.files]);
   phd.ondragover = e => { e.preventDefault(); phd.classList.add('h'); }; phd.ondragleave = () => phd.classList.remove('h'); phd.ondrop = e => { e.preventDefault(); phd.classList.remove('h'); addPhotos([...e.dataTransfer.files]); };
   $('#all').onclick = downloadAll;
+  $('#cs').onclick = sendChat; $('#ci').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
+  $('#cu').onclick = () => { if (!undo) return; cur.fiche = undo.fiche; cur.photos = undo.photos; cur.fond = undo.fond; undo = null; (cur.chat = cur.chat || []).push({ r: 'a', t: '↶ Dernière modification annulée.' }); save(); render(); };
+}
+
+
+/* ---------- assistant ---------- */
+let undo = null;
+function chatHtml() {
+  const h = (cur.chat || []).map(m => `<div class="cm ${m.r}">${esc(m.t).replace(/\n/g, '<br>')}</div>`).join('');
+  return `<div class="card"><h2>💬 Assistant de la fiche</h2><p class="hint">Dis ce que tu veux changer : « ajoute un menu enfant à 9 € dans la carte », « passe le dimanche en fermé », « retire la photo 3 », « mets la photo 5 en fond d'intro », « vérifie le téléphone sur Google », « réécris la description plus chaleureuse ».</p>
+   <div id="chat">${h}</div><div class="row"><input id="ci" style="flex:1;min-width:220px;margin:0" placeholder="Écris ta demande…"><button class="b" id="cs">Envoyer</button><button class="b o s" id="cu" ${undo ? '' : 'disabled'}>↶ Annuler</button></div></div>`;
+}
+const LAB = { nom: 'nom', ville: 'ville', type: 'type', slogan: 'accroche', description: 'description', adresse: 'adresse', tel: 'téléphone', email: 'e-mail', site: 'site', facebook: 'Facebook', instagram: 'Instagram', booking: 'lien de réservation', horaires: 'horaires', services: 'services', carteTxt: 'carte', c1: 'couleurs', c2: 'couleurs', c3: 'couleurs', police: 'police', logoForme: 'forme du logo' };
+function applyAssist(r) {
+  const f = cur.fiche, ch = new Set();
+  undo = { fiche: JSON.parse(JSON.stringify(f)), photos: cur.photos.slice(), fond: cur.fond };
+  for (const [k, v] of Object.entries(r.patch || {})) {
+    if (k === 'slogan' || k === 'description') f[k] = Object.assign(obj4(f[k]), { fr: String(v?.fr ?? v ?? '') });
+    else if (k === 'services') { const old = Object.fromEntries((f.services || []).map(x => [x.fr, x])); f.services = (Array.isArray(v) ? v : []).map(x => String(x?.fr ?? x).trim()).filter(Boolean).map(x => old[x] || { fr: x, es: x, de: x, en: x }); }
+    else if (k === 'horaires') f.horaires = (Array.isArray(v) ? v : []).slice(0, 7).map(String);
+    else f[k] = String(v ?? '');
+    if (/^c[123]$/.test(k)) f._colorsSet = true; ch.add(LAB[k] || k);
+  }
+  const rm = (r.actions || []).filter(a => a.type === 'remove_photo').map(a => +a.n - 1).filter(i => i >= 0 && i < cur.photos.length).sort((a, b) => b - a);
+  rm.forEach(i => { cur.photos.splice(i, 1); if (cur.fond > i) cur.fond--; }); if (rm.length) ch.add('photos');
+  (r.actions || []).filter(a => a.type === 'set_fond').forEach(a => { const i = +a.n - 1; if (i >= 0 && i < cur.photos.length) { cur.fond = i; ch.add('photo de fond'); } });
+  if (cur.fond >= cur.photos.length) cur.fond = 0;
+  if (!ch.size) undo = null; return [...ch];
+}
+async function sendChat() {
+  const i = $('#ci'), t = i.value.trim(); if (!t || !cur.fiche) return;
+  const f = cur.fiche, lite = Object.assign({}, f, { slogan: f.slogan?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr) }); Object.keys(lite).filter(k => k[0] === '_').forEach(k => delete lite[k]);
+  cur.chat = cur.chat || []; const hist = cur.chat.slice(-6); cur.chat.push({ r: 'u', t }); i.value = ''; $('#chat').insertAdjacentHTML('beforeend', `<div class="cm u">${esc(t)}</div><div class="cm a" id="cw">…</div>`); $('#cs').disabled = true;
+  try {
+    const r = await api('/api/fiche', { mode: 'assist', instruction: t, fiche: lite, nbPhotos: cur.photos.length, fond: cur.fond, history: hist }), ch = applyAssist(r);
+    cur.chat.push({ r: 'a', t: (r.message || 'Fait.') + (ch.length ? '\n✔ Modifié : ' + ch.join(', ') : '') });
+  } catch (e) { cur.chat.push({ r: 'a', t: 'Erreur : ' + e.message }); }
+  save(); render(); const c = $('#chat'); if (c) c.scrollTop = c.scrollHeight; $('#ci') && $('#ci').focus();
 }
 
 /* ---------- recherche ---------- */
@@ -162,7 +200,7 @@ async function search() {
       c1: x.c1 || r.theme || '#1f2a44', c2: x.c2 || '#2b899d', c3: x.c3 || ''
     });
     if (!cur.fiche.c3) cur.fiche.c3 = mix(cur.fiche.c2, '#ffffff', .5);
-    cur.notes = x.notes || []; cur.fiche._trh = ''; cur.fiche._tr = hashTr(cur.fiche);
+    cur.notes = x.notes || []; cur.fiche._trh = '';
     save(); render(); msg('Fiche trouvée. Récupération du logo et des photos…', 'i');
     // logo
     if (!cur.logo) for (const u of r.logos || []) { try { const bl = await api('/api/img?u=' + encodeURIComponent(u), null, true); await setLogo(bl); break; } catch (e) { } }
@@ -177,11 +215,11 @@ async function search() {
 /* ---------- génération ---------- */
 const hashTr = f => JSON.stringify([f.slogan?.fr, f.description?.fr, (f.services || []).map(s => s.fr)]);
 async function ensureTr(f) {
-  if (f._tr === f._trh) return; if (!f.slogan?.fr && !f.description?.fr && !(f.services || []).length) return;
+  if (hashTr(f) === f._trh) return; if (!f.slogan?.fr && !f.description?.fr && !(f.services || []).length) return;
   try {
     const r = await api('/api/fiche', { mode: 'translate', slogan: f.slogan?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr) });
     ['slogan', 'description'].forEach(k => { f[k] = Object.assign(obj4(f[k]), r[k] || {}, { fr: f[k]?.fr || '' }); });
-    f.services = (f.services || []).map((s, i) => Object.assign(obj4(s), (r.services || [])[i] || {}, { fr: s.fr })); f._trh = hashTr(f); f._tr = f._trh; save();
+    f.services = (f.services || []).map((s, i) => Object.assign(obj4(s), (r.services || [])[i] || {}, { fr: s.fr })); f._trh = hashTr(f); save();
   } catch (e) { const m = $('#msg2'); if (m) m.innerHTML = '<p class="hint" style="margin-top:10px">Traduction automatique indisponible : les pages seront en français pour ES/DE/EN. (' + esc(e.message) + ')</p>'; }
 }
 const fontCache = {};
