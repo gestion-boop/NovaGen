@@ -169,7 +169,7 @@ function ficheHtml(f) {
    <div><label>Services (un par ligne)<textarea data-sv rows="6">${esc((f.services || []).map(s => s.fr || s).join('\n'))}</textarea></label>
    <label>Carte — « # Catégorie » puis « Plat | prix | description »<textarea data-f="carteTxt" rows="8" placeholder="# Burgers&#10;Le Classique | 12,50 € | steak, cheddar">${esc(f.carteTxt || '')}</textarea></label></div></div></div>
   <div class="card"><h2><i>3</i> Style</h2><div class="g4">
-   <label>Couleur sombre<input type="color" data-f="c1" value="${f.c1 || '#1f2a44'}"></label><label>Accent<input type="color" data-f="c2" value="${f.c2 || '#2b899d'}"></label><label>Survol des boutons<input type="color" data-f="c3" value="${f.c3 || '#f2b632'}"></label>
+   <label>Couleur sombre<input type="color" data-f="c1" value="${f.c1 || '#1f2a44'}"></label><label>Accent<input type="color" data-f="c2" value="${f.c2 || '#2b899d'}"></label><label>Survol des boutons<input type="color" data-f="c3" value="${f.c3 || '#f2b632'}"></label><div style="grid-column:1/-1" class="row"><button class="b o s" id="nch">🎨 Nouvelle charte graphique</button><button class="b o s" id="nchr" title="Palette et style au hasard">🎲 Au hasard</button><span class="hint" style="margin:0">Palette (et style) différents des autres établissements.</span></div>
    <label>Titres<select data-f="police"><option value="serif" ${f.police !== 'sans' ? 'selected' : ''}>Élégant (serif + script)</option><option value="sans" ${f.police === 'sans' ? 'selected' : ''}>Moderne (Montserrat gras)</option></select></label></div>
    <div class="g2"><label>Style des pages (carte, galerie, infos, intro)<select data-f="style"><option value="" ${!f.style ? 'selected' : ''}>Auto — ${(STYLES.find(x => x[0] === styleOf(f)) || [])[1]} (propre à cet établissement)</option>${STYLES.map(([k, n]) => `<option value="${k}" ${String(f.style) === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label><div style="padding-top:22px"><button class="b o s" id="fromlogo">🎨 Couleurs depuis le logo</button></div></div></div>
   <div class="card"><h2><i>4</i> Photos <small style="font-weight:400;color:var(--mu)" id="pc"></small></h2><p class="hint">★ = photo de fond de l'intro. ✕ = retirer. Tu peux en déposer d'autres.</p>
@@ -275,6 +275,7 @@ async function publish(k, btn) {
 function bind() {
   document.querySelectorAll('[data-l]').forEach(e => e.oninput = () => { cur.links[e.dataset.l] = e.value.trim(); save(); });
   $('#go').onclick = search;
+  { const a = $('#nch'), b = $('#nchr'); if (a) a.onclick = () => newCharte(false); if (b) b.onclick = () => newCharte(true); }
   const hsrc = async html => { if (!html || html.length < 200) return; const r = parseHtml(html); cur.src = r; save(); $('#hs').innerHTML = `✔ ${r.images.length} image(s) et ${r.text.length} caractères de texte détectés <a href="#" id="hx">effacer</a>`; $('#hh').value = ''; hx(); };
   const hx = () => { const x = $('#hx'); if (x) x.onclick = e => { e.preventDefault(); cur.src = null; save(); $('#hs').textContent = ''; }; }; hx();
   $('#hh').oninput = e => { const v = e.target.value; clearTimeout(window.__ht); window.__ht = setTimeout(() => hsrc(v), 400); };
@@ -402,8 +403,8 @@ async function search() {
       carteTxt: (x.carte || []).map(c => '# ' + c.cat + '\n' + (c.items || []).map(i => [i.nom, i.prix || '', i.desc || ''].join(' | ')).join('\n')).join('\n'),
       c1: '', c2: '', c3: ''
     });
-    { const gp = genPalette(cur.fiche.nom, cur.fiche.type), bad = v => !/^#[0-9a-f]{6}$/i.test(v || '') || /^#(2b899d|1f2a44)$/i.test(v);
-      cur.fiche.c1 = bad(x.c1) ? (r.theme && !bad(r.theme) ? mix(r.theme, '#000000', .7) : gp.c1) : x.c1; cur.fiche.c2 = bad(x.c2) ? (r.theme && !bad(r.theme) ? r.theme : gp.c2) : x.c2; cur.fiche.c3 = bad(x.c3) ? mix(cur.fiche.c2, '#ffffff', .5) : x.c3; }
+    { const others = (await dbAll()).filter(p => !p.del && p.id !== cur.id), gp = uniquePalette(cur.fiche, others), th = /^#[0-9a-f]{6}$/i.test(r.theme || '') && satOf(r.theme) > .3 && !/^#(2b899d|1f2a44)$/i.test(r.theme) ? r.theme : null;
+      Object.assign(cur.fiche, th ? { c2: th, c1: mix(th, '#000000', .72), c3: mix(th, '#ffffff', .5) } : gp); cur.fiche.style = leastUsedStyle(cur.fiche, others); }
     cur.notes = x.notes || []; cur.fiche._trh = '';
     save(); render(); msg('Fiche trouvée. Récupération du logo et des photos…', 'i');
     // logo : on essaie tous les candidats (site, réseaux, favicon), puis monogramme rond en dernier recours
@@ -479,6 +480,28 @@ async function fromLinks(v, ville = '') {
   for (const u of us) { if (/facebook\.com|fb\.com|fb\.me/i.test(u) && !L.facebook) L.facebook = u; else if (/instagram\.com/i.test(u) && !L.instagram) L.instagram = u; else if (!/facebook|instagram|google\.[a-z]+\/maps|goo\.gl|maps\.app|tripadvisor|airbnb|booking|thefork|lafourchette|tiktok|linktr|pagesjaunes/i.test(u) && !L.site) L.site = u; else rest.push(u); }
   L.autres = rest.join(' '); L.ville = ville;
   cur = newProject(); Object.assign(cur.links, L); await dbPut(cur); renderList(); render(); window.scrollTo(0, 0); search();
+}
+
+
+/* ---------- charte graphique : jamais la même d'un établissement à l'autre ---------- */
+const hueOf = hex => { const n = parseInt(hex.slice(1), 16), r = (n >> 16) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; if (!d) return 0; const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return (h * 60 + 360) % 360; };
+const satOf = hex => { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = n >> 8 & 255, b = n & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx ? (mx - mn) / mx : 0; };
+const hdist = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+function uniquePalette(f, others, rnd) {
+  const used = others.map(p => p.fiche && /^#[0-9a-f]{6}$/i.test(p.fiche.c2 || '') ? hueOf(p.fiche.c2) : null).filter(x => x != null), H = hashStr(f.nom), cands = [];
+  for (let i = 0; i < 24; i++) { const h = (i * 15 + H % 15) % 360; if (h > 165 && h < 210) continue; cands.push([h, (used.length ? Math.min(...used.map(u => hdist(h, u))) : 180) + ((i * 7 + H) % 5) * .01]); }
+  cands.sort((a, b) => b[1] - a[1]); const h = (rnd ? cands[Math.floor(Math.random() * Math.min(4, cands.length))] : cands[0])[0];
+  const sa = 52 + (H >> 3) % 16, l2 = 44 + (H >> 5) % 7;
+  return { c1: hsl(h, 34 + (H >> 7) % 14, 13 + (H >> 9) % 4), c2: hsl(h, sa, l2), c3: hsl(h + 22, sa + 4, l2 + 18) };
+}
+function leastUsedStyle(f, others) {
+  const n = { 1: 0, 2: 0, 3: 0, 4: 0 }, H = hashStr(f.nom); others.forEach(p => { if (p.fiche) n[styleOf(p.fiche)]++; });
+  return ['1', '2', '3', '4'].sort((a, b) => n[a] - n[b] || ((H + +a) % 7) - ((H + +b) % 7))[0];
+}
+async function newCharte(rnd) {
+  const f = cur.fiche, others = (await dbAll()).filter(p => !p.del && p.id !== cur.id), pal = uniquePalette(f, others, rnd);
+  Object.assign(f, pal, { _colorsSet: true }); if (rnd) f.style = ['1', '2', '3', '4'].filter(x => x !== styleOf(f))[Math.floor(Math.random() * 3)];
+  if (cur.logoAuto) cur.logo = await monogram(f); save(); render();
 }
 
 /* ---------- recherche d'un établissement ---------- */

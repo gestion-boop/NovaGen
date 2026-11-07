@@ -96,7 +96,7 @@ Consignes :
 - N'INVENTE RIEN. Une donnée introuvable reste vide. Toute donnée incertaine, contradictoire ou venant d'une seule source douteuse va dans "notes".
 - Détecte le type. Hébergement : pas d'adresse précise, pas d'horaires.
 - Traduis slogan, descCourte, description et services en espagnol, allemand, anglais.
-- Couleurs c1/c2/c3 : celles de la marque (logo, site${theme ? ', theme-color ' + theme : ''}, enseigne, devanture, décor visibles sur les photos). Chaque établissement a SA palette : n'utilise jamais de teinte par défaut ni le bleu sarcelle #2b899d / bleu nuit #1f2a44. Sans identité connue, invente une palette originale et cohérente avec l'ambiance (bistrot, plage, rustique, chic, moderne…) : c1 sombre et profond, c2 accent franc, c3 accent plus clair.
+- Couleurs c1/c2/c3 : laisse "" (vide). Les couleurs sont calculées par l'outil à partir du logo, du site et des autres établissements ; ne propose JAMAIS de palette toi-même.
 Réponds UNIQUEMENT par un objet JSON valide, sans texte autour, selon ce modèle :
 ${SCHEMA}`;
   const messages = [{ role: 'user', content: prompt }];
