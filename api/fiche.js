@@ -66,7 +66,7 @@ async function search(b) {
   const uniq = a => [...new Set(a)];
   photos = uniq(photos).slice(0, 40); logos = uniq(logos).slice(0, 5);
   const prompt = `Tu prépares la fiche d'un établissement pour une visite virtuelle (NovaTour, Narbonne).
-Liens fournis : ${links.join(' , ') || '(aucun)'}${b.nom ? '\nNom indiqué : ' + b.nom : ''}${b.type ? '\nType imposé : ' + b.type : ''}
+Liens fournis : ${links.join(' , ') || '(aucun)'}${b.nom ? '\nNom indiqué : ' + b.nom : ''}${b.adresse ? '\nAdresse de l\'établissement visé : ' + b.adresse : ''}${b.tel ? '\nTéléphone connu : ' + b.tel : ''}${b.type ? '\nType imposé : ' + b.type : ''}
 ${text ? 'Texte déjà extrait du site officiel :\n' + text.slice(0, 15000) : "Aucun texte de site : utilise la recherche web (site officiel, Tripadvisor, office de tourisme, presse locale)."}
 
 Consignes :
@@ -102,6 +102,27 @@ async function translate(b) {
   return jsonOf(textOf(j));
 }
 
+
+// Propositions d'établissements à partir d'un nom ou d'une adresse (OpenStreetMap)
+async function suggest(b) {
+  const q = String(b.q || '').trim(); if (q.length < 3) return { resultats: [] };
+  const r = await fetch('https://nominatim.openstreetmap.org/search?' + new URLSearchParams({ q, format: 'jsonv2', addressdetails: '1', extratags: '1', limit: '10', 'accept-language': 'fr' }), { headers: { 'user-agent': 'NovaGen/1.0 (outil interne NovaTour)' } });
+  if (!r.ok) throw new Error('Service d\'adresses indisponible (' + r.status + ')');
+  const kind = (c, t) => c === 'amenity' && /^(restaurant|cafe|bar|pub|fast_food|biergarten|ice_cream|food_court)$/.test(t) ? 'restaurant' : c === 'tourism' && /^(hotel|guest_house|apartment|hostel|motel|camp_site|caravan_site|chalet|resort)$/.test(t) ? 'hebergement' : c === 'shop' ? 'commerce' : '';
+  const seen = new Set(), out = [];
+  for (const x of await r.json()) {
+    const a = x.address || {}, ex = x.extratags || {}, ville = a.city || a.town || a.village || a.municipality || '', rue = [a.house_number, a.road].filter(Boolean).join(' ');
+    const adresse = [rue, [a.postcode, ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), nom = x.name || '', k = (nom + adresse).toLowerCase();
+    if ((!nom && !adresse) || seen.has(k)) continue; seen.add(k);
+    out.push({ nom, adresse, ville, type: kind(x.category, x.type), site: ex.website || ex['contact:website'] || '', facebook: ex['contact:facebook'] || '', tel: ex.phone || ex['contact:phone'] || '' });
+  }
+  out.sort((p, q) => (q.nom ? 1 : 0) - (p.nom ? 1 : 0));
+  return { resultats: out.slice(0, 8) };
+}
+async function suggestWeb(b) {
+  const j = await claude({ model: MODEL(), max_tokens: 3000, tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }], messages: [{ role: 'user', content: `Trouve jusqu'à 5 établissements (restaurant, bar, hébergement, commerce) qui correspondent à : « ${String(b.q || '').slice(0, 200)} ». Si c'est une adresse, liste les établissements installés à cette adresse. N'invente rien. Réponds UNIQUEMENT en JSON : {"resultats":[{"nom":"","adresse":"adresse complète","ville":"","type":"restaurant|hebergement|commerce","site":"site officiel si connu"}]}` }] });
+  try { const r = jsonOf(textOf(j)); return { resultats: (r.resultats || []).filter(x => x && x.nom).slice(0, 5) }; } catch (e) { return { resultats: [] }; }
+}
 
 const PATCH_KEYS = ['nom', 'ville', 'type', 'slogan', 'description', 'adresse', 'tel', 'email', 'site', 'facebook', 'instagram', 'booking', 'horaires', 'services', 'carteTxt', 'c1', 'c2', 'c3', 'police', 'logoForme'];
 async function assist(b) {
@@ -140,6 +161,9 @@ module.exports = async (req, res) => {
     const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     if (b.mode === 'ping') return res.json({ ok: true, key: !!process.env.ANTHROPIC_API_KEY });
     if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY manquante dans Vercel (Settings → Environment Variables).' });
+    if (b.mode === 'suggest') return res.json(await suggest(b));
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY manquante dans Vercel (Settings → Environment Variables).' });
+    if (b.mode === 'suggest_web') return res.json(await suggestWeb(b));
     if (b.mode === 'assist') return res.json(await assist(b));
     if (b.mode === 'translate') return res.json(await translate(b));
     return res.json(await search(b));

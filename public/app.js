@@ -190,7 +190,7 @@ async function sendChat() {
 async function search() {
   const L = cur.links, b = $('#go'); b.disabled = true; msg('Recherche en cours (site, sources publiques, horaires, carte)…');
   try {
-    const r = await api('/api/fiche', { mode: 'search', site: L.site, facebook: L.facebook, instagram: L.instagram, autres: L.autres, nom: L.nom, type: L.type });
+    const r = await api('/api/fiche', { mode: 'search', site: L.site, facebook: L.facebook, instagram: L.instagram, autres: L.autres, nom: L.nom, type: L.type, adresse: L.adresse || '', tel: L.tel || '' });
     const x = r.fiche || {}, f = cur.fiche || {};
     cur.fiche = Object.assign({ police: 'serif', logoForme: 'libre' }, f, {
       type: L.type || x.type || 'restaurant', nom: x.nom || L.nom || '', ville: x.ville || '', slogan: obj4(x.slogan), description: obj4(x.description), adresse: x.adresse || '', tel: x.tel || '', email: x.email || '',
@@ -259,7 +259,7 @@ async function preview(k) {
   run(); $('#mr').onclick = run;
 }
 $('#mc').onclick = () => { $('#modal').classList.remove('on'); $('#mb').innerHTML = ''; };
-$('#new').onclick = async () => { cur = newProject(); await dbPut(cur); renderList(); render(); };
+$('#new').onclick = () => openFinder();
 (async () => { const all = await dbAll(); all.sort((a, b) => b.upd - a.upd); cur = all[0] || null; renderList(); render(); })();
 
 /* ---------- recherche d'un établissement ---------- */
@@ -272,6 +272,7 @@ async function runSearch() {
   box.className = 'on'; box.firstChild.classList.add('sel');
   box.querySelectorAll('div').forEach(d => d.onclick = async () => {
     if (d.dataset.id) cur = all.find(p => p.id === d.dataset.id);
+    else if (!/^https?:\/\//i.test(v)) { $('#q').value = ''; box.className = ''; openFinder(v); return; }
     else { cur = newProject(); if (/^https?:\/\//i.test(v)) { const key = /facebook\./i.test(v) ? 'facebook' : /instagram\./i.test(v) ? 'instagram' : 'site'; cur.links[key] = v; } else cur.links.nom = v; await dbPut(cur); }
     $('#q').value = ''; box.className = ''; renderList(); render(); window.scrollTo(0, 0);
   });
@@ -279,3 +280,31 @@ async function runSearch() {
 $('#q').oninput = runSearch;
 $('#q').onkeydown = e => { const b = $('#qr'); if (e.key === 'Enter') { const s = b.querySelector('.sel') || b.firstChild; s && s.click(); } if (e.key === 'Escape') { b.className = ''; } if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { const l = [...b.children], i = l.findIndex(x => x.classList.contains('sel')), n = (i + (e.key === 'ArrowDown' ? 1 : -1) + l.length) % l.length; l.forEach(x => x.classList.remove('sel')); l[n] && l[n].classList.add('sel'); e.preventDefault(); } };
 document.addEventListener('click', e => { if (!e.target.closest('#sw')) $('#qr').className = ''; });
+
+/* ---------- nouvel établissement : trouver par nom / adresse ---------- */
+function openFinder(pre = '') {
+  document.getElementById('fm')?.remove();
+  const d = document.createElement('div'); d.id = 'fm'; d.style.cssText = 'position:fixed;inset:0;background:rgba(10,18,30,.7);display:flex;align-items:flex-start;justify-content:center;z-index:60;padding:8vh 16px';
+  d.innerHTML = `<div class="card" style="width:min(640px,100%);max-height:84vh;overflow:auto"><h2>＋ Nouvel établissement</h2><p class="hint">Tape le nom et la ville, ou l'adresse exacte. Choisis le bon résultat : je cherche tout le reste et je crée la fiche complète.</p>
+   <div class="row"><input id="fq" style="flex:1;min-width:200px;margin:0" placeholder="ex. Burger et Cassolette Narbonne  ou  12 rue de la Mairie, 11100 Narbonne" value="${esc(pre)}"><button class="b" id="fs">Chercher</button></div>
+   <div id="fr" style="margin-top:12px"></div>
+   <div class="row" style="margin-top:14px"><button class="b o s" id="fw">🌐 Plus de propositions (recherche web)</button><button class="b o s" id="fl">Je préfère coller des liens</button><button class="b o s" id="fx" style="margin-left:auto">Fermer</button></div></div>`;
+  document.body.appendChild(d); const q = d.querySelector('#fq'); q.focus();
+  const close = () => d.remove(), show = (html) => d.querySelector('#fr').innerHTML = html;
+  const run = async web => {
+    const v = q.value.trim(); if (v.length < 3) return; show('<p class="hint">Recherche…</p>');
+    try {
+      const r = await api('/api/fiche', { mode: web ? 'suggest_web' : 'suggest', q: v }), list = r.resultats || [];
+      show(list.length ? list.map((c, i) => `<div class="pick" data-i="${i}" style="padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;margin-bottom:8px;cursor:pointer"><b>${esc(c.nom || '(adresse sans nom)')}</b>${c.type ? ` <small style="color:var(--b2)">· ${{ restaurant: 'restaurant / bar', hebergement: 'hébergement', commerce: 'commerce' }[c.type]}</small>` : ''}<br><small style="color:var(--mu)">${esc(c.adresse || '')}</small></div>`).join('') : '<p class="hint">Aucun résultat. Essaie « 🌐 Plus de propositions (recherche web) » ou précise la ville.</p>');
+      d.querySelectorAll('.pick').forEach(e => { e.onmouseenter = () => e.style.borderColor = 'var(--b2)'; e.onmouseleave = () => e.style.borderColor = ''; e.onclick = () => pick(list[+e.dataset.i]); });
+    } catch (e) { show(`<div id="msg" class="on e">${esc(e.message)}</div>`); }
+  };
+  async function pick(c) {
+    let nom = c.nom; if (!nom) { nom = prompt('Nom de l\'établissement à cette adresse ?') || ''; if (!nom) return; }
+    close(); cur = newProject(); Object.assign(cur.links, { nom, adresse: c.adresse || '', tel: c.tel || '', site: c.site || '', facebook: c.facebook || '', type: c.type || '' }); await dbPut(cur); renderList(); render(); window.scrollTo(0, 0); search();
+  }
+  d.querySelector('#fs').onclick = () => run(false); d.querySelector('#fw').onclick = () => run(true); d.querySelector('#fx').onclick = close;
+  d.querySelector('#fl').onclick = async () => { close(); cur = newProject(); await dbPut(cur); renderList(); render(); };
+  q.onkeydown = e => { if (e.key === 'Enter') run(false); if (e.key === 'Escape') close(); };
+  if (pre.length > 2) run(false);
+}
