@@ -101,6 +101,10 @@ function render() {
    <div class="g2"><label>Site internet<input data-l="site" value="${esc(L.site)}" placeholder="https://…"></label><label>Facebook<input data-l="facebook" value="${esc(L.facebook)}" placeholder="https://facebook.com/…"></label></div>
    <div class="g2"><label>Instagram<input data-l="instagram" value="${esc(L.instagram)}" placeholder="https://instagram.com/…"></label><label>Autres liens (Tripadvisor, Airbnb, Google Maps…)<input data-l="autres" value="${esc(L.autres)}" placeholder="séparés par un espace"></label></div>
    <div class="g2"><label>Nom (facultatif)<input data-l="nom" value="${esc(L.nom)}"></label><label>Type<select data-l="type"><option value="">Détecter automatiquement</option>${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement (Airbnb, gîte, hôtel, camping)'], ['commerce', 'Commerce / autre']].map(([v, n]) => `<option value="${v}" ${L.type === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
+   <details style="margin-bottom:14px" ${cur.src ? 'open' : ''}><summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--b1)">📋 J'ai le code HTML d'une page (Facebook, Instagram, site…)</summary>
+    <p class="hint" style="margin:8px 0">Ouvre la page dans ton navigateur (connecté si besoin), fais défiler pour charger les photos, puis : clic droit → <b>Afficher le code source de la page</b> → Cmd+A, Cmd+C, et colle ici. Ou Cmd+S → « Page web, HTML uniquement », puis dépose le fichier.</p>
+    <textarea id="hh" rows="4" placeholder="Colle ici le code HTML…"></textarea>
+    <div class="row" style="margin-top:8px"><button class="b o s" id="hf">Choisir un fichier .html</button><input type="file" id="hfi" accept=".html,.htm,.txt,.mhtml" hidden><span class="hint" id="hs" style="margin:0">${cur.src ? `✔ ${cur.src.images.length} image(s) et ${cur.src.text.length} caractères de texte détectés` + ' <a href="#" id="hx">effacer</a>' : ''}</span></div></details>
    <div class="logo" style="margin-bottom:14px">${cur.logo ? `<img id="lg" src="${URL.createObjectURL(cur.logo)}" style="background:${logoBg(cur)}">` : ''}<div class="drop" id="lgd" style="flex:1">${cur.logo ? 'Remplacer le logo' : 'Déposer le logo (facultatif : sinon cherché sur le site)'}<input type="file" id="lgf" accept="image/*" hidden></div></div>
    <div class="row"><button class="b" id="go">🔎 Chercher les infos</button><span class="hint" style="margin:0">Compte 30 à 60 s.</span></div><div id="msg"></div></div>
   ${f ? ficheHtml(f) : ''}`;
@@ -203,6 +207,10 @@ async function publish(k, btn) {
 function bind() {
   document.querySelectorAll('[data-l]').forEach(e => e.oninput = () => { cur.links[e.dataset.l] = e.value.trim(); save(); });
   $('#go').onclick = search;
+  const hsrc = async html => { if (!html || html.length < 200) return; const r = parseHtml(html); cur.src = r; save(); $('#hs').innerHTML = `✔ ${r.images.length} image(s) et ${r.text.length} caractères de texte détectés <a href="#" id="hx">effacer</a>`; $('#hh').value = ''; hx(); };
+  const hx = () => { const x = $('#hx'); if (x) x.onclick = e => { e.preventDefault(); cur.src = null; save(); $('#hs').textContent = ''; }; }; hx();
+  $('#hh').oninput = e => { const v = e.target.value; clearTimeout(window.__ht); window.__ht = setTimeout(() => hsrc(v), 400); };
+  $('#hf').onclick = () => $('#hfi').click(); $('#hfi').onchange = async () => { const f = $('#hfi').files[0]; if (f) hsrc(await f.text()); };
   const lgd = $('#lgd'), lgf = $('#lgf'); lgd.onclick = () => lgf.click(); lgf.onchange = () => lgf.files[0] && setLogo(lgf.files[0]);
   lgd.ondragover = e => { e.preventDefault(); lgd.classList.add('h'); }; lgd.ondragleave = () => lgd.classList.remove('h'); lgd.ondrop = e => { e.preventDefault(); lgd.classList.remove('h'); e.dataTransfer.files[0] && setLogo(e.dataTransfer.files[0]); };
   const f = cur.fiche; if (!f) return;
@@ -284,11 +292,28 @@ async function confirmNotes() {
   save(); render();
 }
 
+
+/* ---------- lecture d'un code HTML collé (Facebook, Instagram, site…) ---------- */
+function parseHtml(raw) {
+  const html = raw.replace(/\\\//g, '/').replace(/\\u0025/gi, '%').replace(/\\u0026/gi, '&').replace(/\\u002F/gi, '/').replace(/&amp;/g, '&');
+  const best = new Map(), size = u => { const m = u.match(/[sp](\d{2,4})x\d{2,4}/); return m ? +m[1] : 9999; };
+  for (const m of html.matchAll(/https?:\/\/[^"'\s<>()\\]+?\.(?:jpe?g|png|webp)(?:\?[^"'\s<>()\\]*)?/gi)) {
+    const u = m[0]; if (/rsrc\.php|static\.xx|emoji|sprite|favicon|\/s(16|24|32|40|48|50|64|72|96|100|120)x|[sp](16|24|32|40|48|50|64|72|96|100|120)x/i.test(u) || /logo|icon|avatar|flag/i.test(u.split('?')[0])) continue;
+    const key = u.split('?')[0].split('/').pop(); if (!best.has(key) || size(u) > size(best.get(key))) best.set(key, u);
+  }
+  const doc = new DOMParser().parseFromString(raw, 'text/html'), meta = [...doc.querySelectorAll('meta[property^="og:"],meta[name="description"],title')].map(e => e.content || e.textContent).filter(Boolean).join(' — ');
+  doc.querySelectorAll('script,style,noscript,svg,iframe').forEach(e => e.remove());
+  const vis = (doc.body?.textContent || '').replace(/\s+/g, ' ').trim();
+  const js = []; for (const m of raw.matchAll(/"(?:text|message|description|name)":"((?:[^"\\]|\\.){20,500})"/g)) { try { js.push(JSON.parse('"' + m[1] + '"')); } catch (e) { } if (js.length > 120) break; }
+  const text = [meta, vis.slice(0, 9000), [...new Set(js)].join('\n').slice(0, 9000)].filter(Boolean).join('\n').slice(0, 22000);
+  return { text, images: [...best.values()].slice(0, 60) };
+}
+
 /* ---------- recherche ---------- */
 async function search() {
   const L = cur.links, b = $('#go'); b.disabled = true; msg('Recherche en cours (site, sources publiques, horaires, carte)…');
   try {
-    const r = await api('/api/fiche', { mode: 'search', site: L.site, facebook: L.facebook, instagram: L.instagram, autres: L.autres, nom: L.nom, type: L.type, adresse: L.adresse || '', tel: L.tel || '' });
+    const r = await api('/api/fiche', { mode: 'search', site: L.site, facebook: L.facebook, instagram: L.instagram, autres: L.autres, nom: L.nom, type: L.type, adresse: L.adresse || '', tel: L.tel || '', pageText: cur.src?.text || '', pageImages: cur.src?.images || [] });
     const x = r.fiche || {}, f = cur.fiche || {};
     cur.fiche = Object.assign({ police: 'serif', logoForme: 'libre' }, f, {
       type: L.type || x.type || 'restaurant', nom: x.nom || L.nom || '', ville: x.ville || '', slogan: obj4(x.slogan), description: obj4(x.description), adresse: x.adresse || '', tel: x.tel || '', email: x.email || '',

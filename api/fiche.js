@@ -55,7 +55,7 @@ const SCHEMA = `{
 
 async function search(b) {
   const links = [b.site, b.facebook, b.instagram, ...(b.autres || '').split(/\s+/)].filter(x => /^https?:\/\//i.test(x || ''));
-  if (!links.length && !b.nom) throw new Error('Colle au moins un lien ou un nom.');
+  if (!links.length && !b.nom && !b.pageText) throw new Error('Colle au moins un lien, un nom ou un code HTML.');
   const site = [b.site, ...links].find(u => u && !/facebook|instagram|airbnb|tripadvisor|google|booking|tiktok/i.test(u));
   let text = '', photos = [], logos = [], theme = '';
   if (site) {
@@ -63,6 +63,8 @@ async function search(b) {
     const subs = await Promise.all(ex.links.slice(0, 4).map(async u => [u, await get(u)]));
     for (const [u, h] of subs) { if (!h) continue; const e2 = extract(h, u); photos.push(...e2.photos); logos.push(...e2.logos); text += '--- ' + u + '\n' + clean(h).slice(0, 4500) + '\n'; }
   }
+  if (b.pageText) text = '--- PAGE FOURNIE PAR L\'UTILISATEUR (code HTML copié depuis son navigateur, source fiable et prioritaire) :\n' + String(b.pageText).slice(0, 18000) + '\n' + text;
+  if (Array.isArray(b.pageImages)) photos.unshift(...b.pageImages.filter(u => /^https?:\/\//i.test(u)).slice(0, 60));
   let social = '';
   for (const u of links.filter(x => /facebook\.com|instagram\.com/i.test(x)).slice(0, 2)) {
     try {
