@@ -237,12 +237,12 @@ async function importCarte(list, btn) {
 const BAR_LAB = { menu: 'Carte', reserver: 'Réserver', photos: 'Photos', appeler: 'Appeler', infos: 'Infos', localisation: 'Plan', contact: 'Contact', plan: 'Plan', panoramas: 'Panoramas', video: 'Vidéo', son: 'Son', pleinecran: 'Plein écran', vr: 'VR', maison: 'Retour', burger: 'Plus', lit: 'Chambres', wifi: 'Wi-Fi', cafe: 'Café', vin: 'Vins', piscine: 'Piscine', tente: 'Camping', gateau: 'Pâtisserie', velo: 'Vélo', play: 'Lecture' };
 const BAR_PG = [['intro', 'Intro'], ['infos', 'Point Info'], ['galerie', 'Galerie'], ['carte', 'Carte'], ['reservation', 'Réservation'], ['video', 'Vidéo']];
 function barDefault(f, n) {
-  if (n === 2) return [['video', 'page:video'], ['photos', 'page:galerie'], ['panoramas', 'url'], ['son', 'url'], ['pleinecran', 'full'], ['maison', 'bar:1']].map(([k, t]) => ({ k, t, u: '' }));
+  if (n === 2) return [['video', 'page:video'], ['photos', 'page:galerie'], ['panoramas', 'url'], ['son', 'url'], ['maison', 'bar:1']].map(([k, t]) => ({ k, t, u: '' }));
   const hasC = parseCarte(f.carteTxt).length, t = f.type;
   const L = t === 'hebergement' ? [['infos', 'page:infos'], ['photos', 'page:galerie'], ['reserver', 'page:reservation'], ['appeler', 'tel'], ['localisation', 'map']]
     : t === 'commerce' ? [['infos', 'page:infos'], ['photos', 'page:galerie'], hasC ? ['menu', 'page:carte'] : ['reserver', 'page:reservation'], ['appeler', 'tel'], ['localisation', 'map']]
     : [['menu', 'page:carte'], ['reserver', 'page:reservation'], ['photos', 'page:galerie'], ['appeler', 'tel'], ['infos', 'page:infos']];
-  L.push(['burger', 'bar:2']); return L.map(([k, t]) => ({ k, t, u: '' }));
+  return L.map(([k, t]) => ({ k, t, u: '' }));
 }
 function barLink(b) {
   const f = cur.fiche;
@@ -257,7 +257,7 @@ function barLink(b) {
 let barView = 1;
 function renderBar() {
   const el = $('#bar'); if (!el) return; const f = cur.fiche; if (!cur.bar) cur.bar = barDefault(f, 1); if (!cur.bar2) cur.bar2 = barDefault(f, 2);
-  if (!cur.bar.some(b => b.t === 'bar:2') && cur.bar2.length && !cur.barNoMore) { cur.bar.push({ k: 'burger', t: 'bar:2', u: '' }); }
+  if (!cur.barV2) { cur.barV2 = 1; cur.bar = cur.bar.filter(b => !(b.k === 'burger' && b.t === 'bar:2')); cur.bar2 = cur.bar2.filter(b => b.t !== 'full'); save(); }
   const pages = [null, cur.bar, cur.bar2], svgUrl = (k, st) => 'data:image/svg+xml;utf8,' + encodeURIComponent(btnSvg(f, ICONS[k] ? k : 'infos', st, 120));
   const bg = cur.photos.length ? URL.createObjectURL(cur.photos[Math.min(cur.fond || 0, cur.photos.length - 1)].blob) : '';
   const imgs = k => `<img class="n" src="${svgUrl(k, 'normal')}"><img class="h" src="${svgUrl(k, 'survol')}"><img class="p" src="${svgUrl(k, 'presse')}">`;
@@ -265,8 +265,8 @@ function renderBar() {
   const row = (b, pg, i) => `<div class="br"><span class="bn">${i + 1}</span><img src="${svgUrl(b.k, 'normal')}" width="34"><select data-bk="${pg}:${i}">${Object.keys(BAR_LAB).filter(k => ICONS[k]).map(k => `<option value="${k}" ${b.k === k ? 'selected' : ''}>${BAR_LAB[k]}</option>`).join('')}</select>${tsel(b, pg, i)}
    ${b.t === 'url' ? `<input data-bu="${pg}:${i}" value="${esc(b.u)}" placeholder="https://…" style="margin:0;flex:1;min-width:160px">` : `<span class="bl">${esc(barLink(b) || '— non renseigné —')}</span>`}
    <button class="b o s" data-bup="${pg}:${i}">↑</button><button class="b o s" data-bdn="${pg}:${i}">↓</button><button class="b o s" data-brm="${pg}:${i}">✕</button></div>`;
-  el.innerHTML = `<div class="bs" id="bs" style="${bg ? `background-image:url(${bg})` : ''}"><div class="bsc">${pages[barView].map((b, i) => `<button class="bb" data-bi="${i}" title="${esc(BAR_LAB[b.k] || b.k)}">${imgs(b.k)}</button>`).join('')}</div><div class="bso" id="bso"><div class="bsh"><b id="bst"></b><button class="bb x" id="bsx" title="Fermer">${imgs('fermer')}</button></div><iframe id="bsf"></iframe></div><div class="bsm" id="bsm"></div><button class="b s" id="bsq">✕ Quitter le plein écran</button></div>
-  <div class="row" style="margin:10px 0 0"><button class="b s" id="bfs">⛶ Plein écran (comme en vrai)</button><span class="hint" style="margin:0">Page de la barre affichée : <b>${barView}</b> · le bouton ☰ mène à la page 2 (Vidéo, Photos…), ⌂ revient à la page 1.</span></div>
+  el.innerHTML = `<div class="bs" id="bs" style="${bg ? `background-image:url(${bg})` : ''}"><div class="bsc">${pages[barView].map((b, i) => `<button class="bb" data-bi="${i}" title="${esc(BAR_LAB[b.k] || b.k)}">${imgs(b.k)}</button>`).join('')}</div><div class="bso" id="bso"><div class="bsh"><b id="bst"></b><button class="bb x" id="bsx" title="Fermer">${imgs('fermer')}</button></div><iframe id="bsf"></iframe></div><div class="bsm" id="bsm"></div><button class="bb bfs" id="bfs" title="Plein écran">${imgs('pleinecran')}</button></div>
+  <div class="row" style="margin:10px 0 0"><span class="hint" style="margin:0">Le petit bouton en haut à droite de l'image passe en plein écran (Échap pour quitter). Page de la barre affichée : <b>${barView}</b> · la page 2 (Vidéo, Photos…) s'ouvre si tu ajoutes un bouton « Barre : page 2 » à la page 1.</span></div>
   ${[1, 2].map(pg => `<h3 class="bh">Barre — page ${pg}${pg === 2 ? ' (accessible par le bouton « Plus »)' : ''}</h3><div class="brows">${pages[pg].map((b, i) => row(b, pg, i)).join('')}</div><div class="row" style="margin-top:6px"><button class="b o s" data-bad="${pg}">+ Ajouter un bouton</button><button class="b o s" data-bre="${pg}">↺ Réinitialiser la page ${pg}</button></div>`).join('')}
   <div class="row" style="margin-top:12px"><button class="b o s" id="bcp">📋 Copier la liste des liens</button></div>`;
   const save2 = (re = true) => { save(); if (re) renderBar(); }, at = v => { const [pg, i] = v.split(':').map(Number); return [pages[pg], i]; };
@@ -287,7 +287,7 @@ function renderBar() {
     } else if (!l) msg('Pas de lien renseigné pour ce bouton.'); else if (b.t === 'tel') msg('📞 Ouvre l\'appel : ' + l.slice(4)); else if (b.t === 'mail') msg('✉ Ouvre un e-mail : ' + l.slice(7)); else window.open(l, '_blank');
   });
   $('#bsx').onclick = () => { $('#bso').classList.remove('on'); $('#bsf').srcdoc = ''; };
-  $('#bfs').onclick = () => full(true); $('#bsq').onclick = () => full(false);
+  $('#bfs').onclick = () => full(!$('#bs').classList.contains('full'));
   if (!window._barEsc) { window._barEsc = true; const out = () => { const bs = $('#bs'); if (bs && bs.classList.contains('full')) { bs.classList.remove('full'); document.body.style.overflow = ''; } }; document.addEventListener('keydown', e => { if (e.key === 'Escape') out(); }); document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) out(); }); }
   el.querySelectorAll('[data-bk]').forEach(x => x.onchange = () => { const [L, i] = at(x.dataset.bk); L[i].k = x.value; save2(); });
   el.querySelectorAll('[data-bt]').forEach(x => x.onchange = () => { const [L, i] = at(x.dataset.bt); L[i].t = x.value; save2(); });
