@@ -39,8 +39,13 @@ async function toJpeg(blob, max = 1600) {
   c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k); const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(bm, 0, 0, c.width, c.height);
   return { blob: await new Promise(r => c.toBlob(r, 'image/jpeg', .85)), w: bm.width, h: bm.height };
 }
+async function svgBitmap(blob) {
+  const u = URL.createObjectURL(blob);
+  try { const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = u; }), w = img.naturalWidth || 512, h = img.naturalHeight || 512, k = 512 / Math.max(w, h), c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); return await createImageBitmap(c); } finally { URL.revokeObjectURL(u); }
+}
+const bmOf = blob => /svg/i.test(blob.type) ? svgBitmap(blob) : createImageBitmap(blob);
 async function toPng(blob, max = 700) {
-  const bm = await createImageBitmap(blob), k = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas');
+  const bm = await bmOf(blob), k = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas');
   c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
   return new Promise(r => c.toBlob(r, 'image/png'));
 }
@@ -75,7 +80,21 @@ async function addPhotoUrls(txt) {
   for (const u of urls) { try { const bl = await api('/api/img?u=' + encodeURIComponent(u), null, true), r = await toJpeg(bl); if (Math.max(r.w, r.h) < 400) continue; cur.photos.push({ id: 'i' + Date.now() + ok, blob: r.blob }); ok++; } catch (e) { } }
   save(); renderPhotos(); return [ok, urls.length];
 }
-async function setLogo(blob) { cur.logo = await toPng(blob); cur.logoLight = await logoIsLight(cur.logo); if (!cur.fiche?._colorsSet) { const d = await dominant(cur.logo); if (d && cur.fiche) Object.assign(cur.fiche, d); } save(); render(); }
+async function monogram(f) {
+  const stop = /^(le|la|les|l|de|du|des|d|au|aux|chez|the|et|and|un|une|restaurant|bar|hotel|hôtel|cafe|café|camping)$/i;
+  const w = String(f.nom || '').replace(/[&'’\-]/g, ' ').split(/\s+/).filter(x => x && !stop.test(x)), all = String(f.nom || '').split(/\s+/).filter(Boolean);
+  const ini = ((w.length ? w : all).slice(0, 2).map(x => x[0]).join('') || '?').toUpperCase();
+  try { await new FontFace('DM Serif Display', 'url(fonts/dmserif.woff2)').load().then(ff => document.fonts.add(ff)); } catch (e) { }
+  const S = 512, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), c1 = f.c1 || '#1f2a44', c2 = f.c2 || '#c0682f', hl = lum(c2) > .4 ? c2 : mix(c2, '#ffffff', .55);
+  const g = x.createRadialGradient(S * .38, S * .3, 20, S / 2, S / 2, S * .62); g.addColorStop(0, mix(c1, c2, .35)); g.addColorStop(1, c1);
+  x.fillStyle = g; x.beginPath(); x.arc(S / 2, S / 2, S / 2, 0, 7); x.fill();
+  x.strokeStyle = hl; x.lineWidth = 10; x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 22, 0, 7); x.stroke();
+  x.strokeStyle = hl + '66'; x.lineWidth = 2; x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 42, 0, 7); x.stroke();
+  x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'alphabetic'; const fs = ini.length > 1 ? 210 : 260; x.font = `${fs}px "DM Serif Display",Georgia,serif`; x.fillText(ini, S / 2, S / 2 + fs * .33);
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+async function setLogo(blob) {
+  cur.logoAuto = false; cur.logo = await toPng(blob); cur.logoLight = await logoIsLight(cur.logo); if (!cur.fiche?._colorsSet) { const d = await dominant(cur.logo); if (d && cur.fiche) Object.assign(cur.fiche, d); } save(); render(); }
 
 /* ---------- suppression : confirmation en tapant « supprimer », puis corbeille 30 jours ---------- */
 function askDelete(p, done) {
@@ -150,7 +169,7 @@ function ficheHtml(f) {
   <div class="card"><h2><i>3</i> Style</h2><div class="g4">
    <label>Couleur sombre<input type="color" data-f="c1" value="${f.c1 || '#1f2a44'}"></label><label>Accent<input type="color" data-f="c2" value="${f.c2 || '#2b899d'}"></label><label>Survol des boutons<input type="color" data-f="c3" value="${f.c3 || '#f2b632'}"></label>
    <label>Titres<select data-f="police"><option value="serif" ${f.police !== 'sans' ? 'selected' : ''}>Élégant (serif + script)</option><option value="sans" ${f.police === 'sans' ? 'selected' : ''}>Moderne (Montserrat gras)</option></select></label></div>
-   <div class="g2"><label>Forme du logo<select data-f="logoForme"><option value="libre" ${f.logoForme !== 'rond' ? 'selected' : ''}>Libre (logo tel quel)</option><option value="rond" ${f.logoForme === 'rond' ? 'selected' : ''}>Rond (cadre doré)</option></select></label><div style="padding-top:22px"><button class="b o s" id="fromlogo">🎨 Couleurs depuis le logo</button></div></div></div>
+   <div class="g2"><label>Style des pages (carte, galerie, infos, intro)<select data-f="style"><option value="" ${!f.style ? 'selected' : ''}>Auto — ${(STYLES.find(x => x[0] === styleOf(f)) || [])[1]} (propre à cet établissement)</option>${STYLES.map(([k, n]) => `<option value="${k}" ${String(f.style) === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label><div style="padding-top:22px"><button class="b o s" id="fromlogo">🎨 Couleurs depuis le logo</button></div></div></div>
   <div class="card"><h2><i>4</i> Photos <small style="font-weight:400;color:var(--mu)" id="pc"></small></h2><p class="hint">★ = photo de fond de l'intro. ✕ = retirer. Tu peux en déposer d'autres.</p>
    <div class="drop" id="phd">Glisser des photos (ou un ZIP de photos) ici, ou cliquer. Tu peux aussi coller des images avec Cmd+V.<input type="file" id="phf" accept="image/*,.zip" multiple hidden></div>
    <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--b1)">Importer depuis des liens d'images (Facebook, Instagram, site…)</summary><p class="hint" style="margin:8px 0">Sur Facebook : clic droit sur une photo → « Copier l'adresse de l'image », puis colle les adresses ici (une par ligne ou séparées par un espace).</p><textarea id="pu" rows="4" placeholder="https://scontent…"></textarea><div class="row" style="margin-top:8px"><button class="b o s" id="pub2">Importer ces liens</button><span class="hint" id="pm" style="margin:0"></span></div></details><div class="ph" id="ph"></div></div>
@@ -172,12 +191,34 @@ const KW = { intro: ['intro'], infos: ['info', 'point'], galerie: ['galerie', 'g
 function guess(k) { if (!vproj) return defProject(k); const s = slug().toLowerCase(), m = vproj.filter(p => p.name.replace(/-|et/g, '').includes(s.replace(/et/g, '')) && KW[k].some(w => p.name.includes(w))); return m.length === 1 ? m[0].name : defProject(k); }
 async function loadProjects() { if (vload) return; vload = true; try { vproj = (await api('/api/publish', { mode: 'projects' })).projects || []; } catch (e) { vproj = []; vperr = e.message; } if ($('#out')) renderOut(); }
 const projOf = k => ((cur.vp || {})[k] || guess(k)).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
+const PG = ['intro', 'infos', 'galerie', 'carte', 'reservation'];
+/* 🎲 autre proposition : nouveau style (et nouvelle photo de fond) pour UNE page, puis aperçu */
+function randomize(k) {
+  const f = cur.fiche, now = styleOfPg(f, k), opts = ['1', '2', '3', '4'].filter(x => x !== now), pick = opts[Math.floor(Math.random() * opts.length)];
+  f.pstyle = Object.assign({}, f.pstyle, { [k]: pick });
+  if (['intro', 'infos', 'carte'].includes(k) && cur.photos.length > 1) { const was = (f.pfond && f.pfond[k] != null) ? +f.pfond[k] : cur.fond, c = cur.photos.map((_, i) => i).filter(i => i !== was); f.pfond = Object.assign({}, f.pfond, { [k]: c[Math.floor(Math.random() * c.length)] }); }
+  save(); renderOut(); preview(k);
+}
+/* commentaire libre : Claude modifie la fiche / le style puis on ouvre l'aperçu */
+async function applyComment(k, btn) {
+  const ta = document.querySelector(`[data-pc="${k}"]`), t = (ta?.value || '').trim(), m = $('#pm-' + k); if (!t) { if (m) m.textContent = 'Écris d\'abord ce que tu veux changer.'; return; }
+  btn.disabled = true; btn.textContent = '…'; if (m) m.textContent = 'Claude applique…';
+  try {
+    const r = await api('/api/fiche', { mode: 'assist', page: k, instruction: t, fiche: liteFiche(), nbPhotos: cur.photos.length, fond: cur.fond, history: [] }), ch = applyAssist(r);
+    cur.chat = cur.chat || []; cur.chat.push({ r: 'u', t: `[${k}] ${t}` }, { r: 'a', t: (r.message || 'Fait.') + (ch.length ? '\n✔ Modifié : ' + ch.join(', ') : '') });
+    save(); renderOut(); const m2 = $('#pm-' + k); if (m2) m2.innerHTML = esc(r.message || 'Fait.') + (ch.length ? ' <b>✔ ' + esc(ch.join(', ')) + '</b>' : ''); if (ch.length) preview(k);
+  } catch (e) { if (m) m.textContent = e.message; btn.disabled = false; btn.textContent = 'Appliquer'; }
+}
 function renderOut() {
   const o = $('#out'); if (!o) return; const f = cur.fiche, heb = f.type === 'hebergement', hasC = parseCarte(f.carteTxt).length;
   const items = [['intro', 'Intro', '5 s · iris · signature NovaVisio'], ['infos', 'Point Info', 'horaires, adresse, contact, services'], ['galerie', 'Galerie', cur.photos.length + ' photo(s) + lightbox', !cur.photos.length], ['carte', 'Carte', 'plats et prix', heb || !hasC], ['reservation', heb ? 'Réservation / demande' : 'Réservation', 'récap + appel / e-mail / Messenger', f.type === 'commerce'], ['boutons', 'Boutons glossy', '30 icônes × 3 états, 256 et 128 px']];
   o.innerHTML = items.map(([k, n, d, off]) => `<div class="o" style="${off ? 'opacity:.45' : ''}"><b>${n} <span class="bd" id="bd-${k}"></span></b><small>${off ? 'Non disponible pour cette fiche' : d}</small>
    ${PUB.includes(k) && !off ? `<label style="margin:0;font-size:11px">Projet Vercel à mettre à jour<input data-vp="${k}" list="vpl" value="${esc(projOf(k))}" style="margin-top:3px;padding:7px 9px;font-size:12.5px"></label><div class="vs" id="vs-${k}"></div>` : ''}
-   <div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>Aperçu</button><button class="b o s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button>${PUB.includes(k) && !off ? `<button class="b s" data-pub="${k}">🚀 Déployer</button>` : ''}</div><div class="pl" id="pl-${k}"></div></div>`).join('');
+   <div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>Aperçu</button><button class="b o s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button>${PUB.includes(k) && !off ? `<button class="b s" data-pub="${k}">🚀 Déployer</button>` : ''}</div>${PG.includes(k) && !off ? `<div style="border-top:1px dashed var(--line);padding-top:8px"><small id="sty-${k}" style="display:block;margin-bottom:5px"></small><textarea data-pc="${k}" rows="2" placeholder="Un changement ? ex. fond plus sombre, titres plus gros, carte plus aérée…" style="margin:0;min-height:0;font-size:12.5px;padding:7px 9px"></textarea><div class="row" style="margin-top:6px"><button class="b s" data-pa="${k}">Appliquer</button><button class="b o s" data-rnd="${k}" title="Propose un autre design pour cette page">🎲 Autre proposition</button></div><div class="vs" id="pm-${k}"></div></div>` : ''}<div class="pl" id="pl-${k}"></div></div>`).join('');
+  const stl = k => { const el = $('#sty-' + k); if (el) el.innerHTML = 'Style : <b>' + ((STYLES.find(x => x[0] === styleOfPg(f, k)) || [])[1] || '') + '</b>' + (f.pstyle && f.pstyle[k] ? ' <a href="#" data-auto="' + k + '">↺ auto</a>' : ''); }; PG.forEach(stl);
+  o.querySelectorAll('[data-auto]').forEach(a => a.onclick = e => { e.preventDefault(); delete f.pstyle[a.dataset.auto]; if (f.pfond) delete f.pfond[a.dataset.auto]; save(); renderOut(); });
+  o.querySelectorAll('[data-rnd]').forEach(b => b.onclick = () => randomize(b.dataset.rnd));
+  o.querySelectorAll('[data-pa]').forEach(b => b.onclick = () => applyComment(b.dataset.pa, b));
   o.querySelectorAll('[data-pv]').forEach(b => b.onclick = () => preview(b.dataset.pv));
   o.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => download(b.dataset.dl, b));
   o.insertAdjacentHTML('beforeend', `<datalist id="vpl">${(vproj || []).map(p => `<option value="${esc(p.name)}">${esc(p.domain)}</option>`).join('')}</datalist>`);
@@ -238,7 +279,7 @@ function bind() {
   const lgd = $('#lgd'), lgf = $('#lgf'); lgd.onclick = () => lgf.click(); lgf.onchange = () => lgf.files[0] && setLogo(lgf.files[0]);
   lgd.ondragover = e => { e.preventDefault(); lgd.classList.add('h'); }; lgd.ondragleave = () => lgd.classList.remove('h'); lgd.ondrop = e => { e.preventDefault(); lgd.classList.remove('h'); e.dataTransfer.files[0] && setLogo(e.dataTransfer.files[0]); };
   const f = cur.fiche; if (!f) return;
-  document.querySelectorAll('[data-f]').forEach(e => { e.oninput = e.onchange = () => { f[e.dataset.f] = e.value; if (/^c[123]$/.test(e.dataset.f)) f._colorsSet = true; save(); if (e.dataset.f === 'type' || e.dataset.f === 'carteTxt') renderOut(); }; });
+  document.querySelectorAll('[data-f]').forEach(e => { e.oninput = e.onchange = () => { f[e.dataset.f] = e.value; if (/^c[123]$/.test(e.dataset.f)) { f._colorsSet = true; if (cur.logoAuto) { clearTimeout(window.__mg); window.__mg = setTimeout(async () => { cur.logo = await monogram(f); save(); }, 400); } } save(); if (e.dataset.f === 'type' || e.dataset.f === 'carteTxt') renderOut(); }; });
   document.querySelectorAll('[data-s]').forEach(e => e.oninput = () => { const k = e.dataset.s; f[k] = Object.assign({ fr: '', es: '', de: '', en: '' }, f[k], { fr: e.value }); save(); });
   document.querySelectorAll('[data-h]').forEach(e => e.oninput = () => { f.horaires = f.horaires || []; f.horaires[+e.dataset.h] = e.value; save(); });
   $('[data-sv]').oninput = e => { const old = Object.fromEntries((f.services || []).map(s => [s.fr, s])); f.services = e.target.value.split('\n').map(x => x.trim()).filter(Boolean).map(x => old[x] || { fr: x, es: x, de: x, en: x }); save(); };
@@ -260,13 +301,14 @@ function chatHtml() {
   return `<div class="card"><h2>💬 Assistant de la fiche</h2><p class="hint">Dis ce que tu veux changer : « ajoute un menu enfant à 9 € dans la carte », « passe le dimanche en fermé », « retire la photo 3 », « mets la photo 5 en fond d'intro », « vérifie le téléphone sur Google », « réécris la description plus chaleureuse ».</p>
    <div id="chat">${h}</div><div class="row"><input id="ci" style="flex:1;min-width:220px;margin:0" placeholder="Écris ta demande…"><button class="b" id="cs">Envoyer</button><button class="b o s" id="cu" ${undo ? '' : 'disabled'}>↶ Annuler</button></div></div>`;
 }
-const LAB = { nom: 'nom', ville: 'ville', type: 'type', slogan: 'accroche', descCourte: 'description courte', description: 'description longue', adresse: 'adresse', tel: 'téléphone', email: 'e-mail', site: 'site', facebook: 'Facebook', instagram: 'Instagram', booking: 'lien de réservation', horaires: 'horaires', services: 'services', carteTxt: 'carte', c1: 'couleurs', c2: 'couleurs', c3: 'couleurs', police: 'police', logoForme: 'forme du logo' };
+const LAB = { style: 'style des pages', pstyle: 'style de la page', nom: 'nom', ville: 'ville', type: 'type', slogan: 'accroche', descCourte: 'description courte', description: 'description longue', adresse: 'adresse', tel: 'téléphone', email: 'e-mail', site: 'site', facebook: 'Facebook', instagram: 'Instagram', booking: 'lien de réservation', horaires: 'horaires', services: 'services', carteTxt: 'carte', c1: 'couleurs', c2: 'couleurs', c3: 'couleurs', police: 'police', logoForme: 'forme du logo' };
 function applyAssist(r) {
   const f = cur.fiche, ch = new Set();
   undo = { fiche: JSON.parse(JSON.stringify(f)), photos: cur.photos.slice(), fond: cur.fond };
   for (const [k, v] of Object.entries(r.patch || {})) {
     if (k === 'slogan' || k === 'descCourte' || k === 'description') f[k] = Object.assign(obj4(f[k]), { fr: String(v?.fr ?? v ?? '') });
     else if (k === 'services') { const old = Object.fromEntries((f.services || []).map(x => [x.fr, x])); f.services = (Array.isArray(v) ? v : []).map(x => String(x?.fr ?? x).trim()).filter(Boolean).map(x => old[x] || { fr: x, es: x, de: x, en: x }); }
+    else if (k === 'pstyle') f.pstyle = Object.assign({}, f.pstyle, Object.fromEntries(Object.entries(v && typeof v === 'object' ? v : {}).filter(([, b]) => ['1', '2', '3', '4'].includes(String(b))).map(([a, b]) => [a, String(b)])));
     else if (k === 'horaires') f.horaires = (Array.isArray(v) ? v : []).slice(0, 7).map(String);
     else f[k] = String(v ?? '');
     if (/^c[123]$/.test(k)) f._colorsSet = true; ch.add(LAB[k] || k);
@@ -350,32 +392,39 @@ async function search() {
   try {
     const r = await api('/api/fiche', { mode: 'search', site: L.site, facebook: L.facebook, instagram: L.instagram, autres: L.autres, nom: L.nom, type: L.type, adresse: L.adresse || '', ville: L.ville || '', tel: L.tel || '', pageText: cur.src?.text || '', pageImages: cur.src?.images || [] });
     const x = r.fiche || {}, f = cur.fiche || {};
-    cur.fiche = Object.assign({ police: 'serif', logoForme: 'libre' }, f, {
+    cur.fiche = Object.assign({ police: 'serif', logoForme: 'rond' }, f, {
       type: L.type || x.type || 'restaurant', nom: x.nom || L.nom || '', ville: x.ville || '', slogan: obj4(x.slogan), descCourte: obj4(x.descCourte), description: obj4(x.description), adresse: x.adresse || '', tel: x.tel || '', email: x.email || '',
       site: x.site || L.site || '', facebook: x.facebook || L.facebook || '', instagram: x.instagram || L.instagram || '', booking: x.reservation_url || '',
       horaires: Array.isArray(x.horaires) ? x.horaires.slice(0, 7) : [], services: (x.services || []).map(obj4),
       carteTxt: (x.carte || []).map(c => '# ' + c.cat + '\n' + (c.items || []).map(i => [i.nom, i.prix || '', i.desc || ''].join(' | ')).join('\n')).join('\n'),
-      c1: x.c1 || r.theme || '#1f2a44', c2: x.c2 || '#2b899d', c3: x.c3 || ''
+      c1: '', c2: '', c3: ''
     });
-    if (!cur.fiche.c3) cur.fiche.c3 = mix(cur.fiche.c2, '#ffffff', .5);
+    { const gp = genPalette(cur.fiche.nom, cur.fiche.type), bad = v => !/^#[0-9a-f]{6}$/i.test(v || '') || /^#(2b899d|1f2a44)$/i.test(v);
+      cur.fiche.c1 = bad(x.c1) ? (r.theme && !bad(r.theme) ? mix(r.theme, '#000000', .7) : gp.c1) : x.c1; cur.fiche.c2 = bad(x.c2) ? (r.theme && !bad(r.theme) ? r.theme : gp.c2) : x.c2; cur.fiche.c3 = bad(x.c3) ? mix(cur.fiche.c2, '#ffffff', .5) : x.c3; }
     cur.notes = x.notes || []; cur.fiche._trh = '';
     save(); render(); msg('Fiche trouvée. Récupération du logo et des photos…', 'i');
-    // logo
-    if (!cur.logo) for (const u of r.logos || []) { try { const bl = await api('/api/img?u=' + encodeURIComponent(u), null, true); await setLogo(bl); break; } catch (e) { } }
+    // logo : on essaie tous les candidats (site, réseaux, favicon), puis monogramme rond en dernier recours
+    if (!cur.logo || cur.logoAuto) { let got = false;
+      for (const u of r.logos || []) { try { const bl = await api('/api/img?u=' + encodeURIComponent(u), null, true), bm = await bmOf(bl); if (Math.max(bm.width, bm.height) < 120) continue; await setLogo(bl); got = true; break; } catch (e) { } }
+      if (!got && !cur.logo) { cur.logo = await monogram(cur.fiche); cur.logoLight = true; cur.logoAuto = true; }
+    }
     // photos
     const pool = (r.photos || []).slice(0, 36); let n = 0, i = 0;
     await Promise.all(Array.from({ length: 4 }, async () => { while (i < pool.length && cur.photos.length < 24) { const u = pool[i++]; try { const bl = await api('/api/img?u=' + encodeURIComponent(u), null, true), p = await toJpeg(bl); if (Math.max(p.w, p.h) < 600) continue; cur.photos.push({ id: 'i' + Date.now() + (n++), blob: p.blob }); } catch (e) { } } }));
-    if (cur.logo && !cur.fiche._colorsSet && !x.c2) { const d = await dominant(cur.logo); if (d) Object.assign(cur.fiche, d); }
+    if (cur.logo && !cur.logoAuto && !cur.fiche._colorsSet) { const d = await dominant(cur.logo); if (d) Object.assign(cur.fiche, d); }
+    if (cur.logoAuto) { cur.logo = await monogram(cur.fiche); }
     save(); render(); msg(cur.photos.length ? `Terminé : ${cur.photos.length} photo(s)${cur.logo ? ', logo trouvé' : ', pas de logo (dépose-le ci-dessus)'}. Vérifie la fiche.` : 'Fiche créée, mais aucune photo récupérée automatiquement (le site n\'en expose pas, et Facebook / Instagram bloquent les robots). Ajoute-les dans « 4 Photos » : glisser-déposer, Cmd+V, ZIP ou liens d\'images.', cur.photos.length ? 'k' : 'i');
   } catch (e) { render(); msg(e.message, 'e'); } finally { const g = $('#go'); if (g) g.disabled = false; }
 }
 
 /* ---------- génération ---------- */
-const hashTr = f => JSON.stringify([f.slogan?.fr, f.descCourte?.fr, f.description?.fr, (f.services || []).map(s => s.fr)]);
+const hashTr = f => JSON.stringify([f.slogan?.fr, f.descCourte?.fr, f.description?.fr, (f.services || []).map(s => s.fr), f.carteTxt || '']);
+const carteCats = f => parseCarte(f.carteTxt);
 async function ensureTr(f) {
-  if (hashTr(f) === f._trh) return; if (!f.slogan?.fr && !f.descCourte?.fr && !f.description?.fr && !(f.services || []).length) return;
+  if (hashTr(f) === f._trh) return; if (!f.slogan?.fr && !f.descCourte?.fr && !f.description?.fr && !(f.services || []).length && !f.carteTxt) return;
   try {
-    const r = await api('/api/fiche', { mode: 'translate', slogan: f.slogan?.fr || '', descCourte: f.descCourte?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr) });
+    const r = await api('/api/fiche', { mode: 'translate', slogan: f.slogan?.fr || '', descCourte: f.descCourte?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr), cats: carteCats(f).map(c => c.cat), descs: carteCats(f).flatMap(c => c.items.filter(i => i.desc).map(i => i.desc)).slice(0, 150) });
+    f.carteTr = { cats: (r.cats || []), descs: (r.descs || []), n: carteCats(f).flatMap(c => c.items.filter(i => i.desc)).length };
     ['slogan', 'descCourte', 'description'].forEach(k => { f[k] = Object.assign(obj4(f[k]), r[k] || {}, { fr: f[k]?.fr || '' }); });
     f.services = (f.services || []).map((s, i) => Object.assign(obj4(s), (r.services || [])[i] || {}, { fr: s.fr })); f._trh = hashTr(f); save();
   } catch (e) { const m = $('#msg2'); if (m) m.innerHTML = '<p class="hint" style="margin-top:10px">Traduction automatique indisponible : les pages seront en français pour ES/DE/EN. (' + esc(e.message) + ')</p>'; }

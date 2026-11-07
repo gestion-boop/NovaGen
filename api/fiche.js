@@ -15,7 +15,7 @@ const clean = h => h.replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, ' '
 
 function extract(html, base) {
   const photos = [], logos = [], abs = u => { try { return new URL(u.replace(/&amp;/g, '&'), base).href; } catch (e) { return ''; } };
-  const add = (u, arr, hint = '') => { u = abs(u); if (!u || /^data:/.test(u)) return; if (/\.(svg|gif|ico)(\?|$)/i.test(u)) return; if (/logo/i.test(u + hint)) { if (/\.(png|jpe?g|webp)(\?|$)/i.test(u)) logos.push(u); return; } if (/(icon|favicon|sprite|pixel|flag|avatar|emoji|placeholder|loader|spinner|payment|badge|tripadvisor|google|facebook|instagram)/i.test(u)) return; arr.push(u.replace(/-\d{2,4}x\d{2,4}(?=\.(jpe?g|png|webp)(\?|$))/i, '')); };
+  const add = (u, arr, hint = '') => { u = abs(u); if (!u || /^data:/.test(u)) return; if (/\.(gif|ico)(\?|$)/i.test(u)) return; if (/logo/i.test(u + hint)) { if (/\.(png|jpe?g|webp|svg)(\?|$)/i.test(u)) logos.push(u); return; } if (/\.svg(\?|$)/i.test(u)) return; if (/(icon|favicon|sprite|pixel|flag|avatar|emoji|placeholder|loader|spinner|payment|badge|tripadvisor|google|facebook|instagram)/i.test(u)) return; arr.push(u.replace(/-\d{2,4}x\d{2,4}(?=\.(jpe?g|png|webp)(\?|$))/i, '')); };
   let m; const reImg = /<img\b[^>]*>/gi;
   while ((m = reImg.exec(html))) {
     const tag = m[0], alt = (tag.match(/alt=["']([^"']*)/i) || [])[1] || '';
@@ -27,7 +27,12 @@ function extract(html, base) {
   const reBg = /url\((['"]?)([^)'"]+\.(?:jpe?g|png|webp)[^)'"]*)\1\)/gi;
   while ((m = reBg.exec(html))) add(m[2], photos);
   const og = (html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i) || [])[1]; if (og) add(og, photos);
-  const ap = (html.match(/<link[^>]+rel=["'](?:apple-touch-icon|icon)[^>]*href=["']([^"']+)/i) || [])[1]; if (ap && /\.(png|jpe?g|webp)/i.test(ap)) logos.push(abs(ap));
+  const first = [];
+  for (const m2 of html.matchAll(/"logo"\s*:\s*(?:\{[^}]*?"url"\s*:\s*)?"([^"]+)"/gi)) first.push(abs(m2[1].replace(/\\\//g, '/')));
+  const ogl = (html.match(/<meta[^>]+property=["']og:logo["'][^>]+content=["']([^"']+)/i) || [])[1]; if (ogl) first.push(abs(ogl));
+  const hdr = (html.match(/<(?:header|nav)\b[\s\S]{0,3000}?<img\b[^>]*\bsrc=["']([^"']+)/i) || [])[1]; if (hdr && !/\.(gif|ico)(\?|$)/i.test(hdr)) first.push(abs(hdr));
+  const icons = [...html.matchAll(/<link[^>]+rel=["'][^"']*icon[^"']*["'][^>]*>/gi)].map(x => { const h = (x[0].match(/href=["']([^"']+)/i) || [])[1], sz = parseInt((x[0].match(/sizes=["'](\d+)/i) || [])[1] || (/apple-touch/i.test(x[0]) ? 180 : 0)); return h ? [abs(h), sz] : null; }).filter(Boolean).sort((a, b) => b[1] - a[1]);
+  logos.unshift(...first.filter(Boolean)); for (const [u] of icons) if (u && /\.(png|jpe?g|webp|svg)(\?|$)/i.test(u)) logos.push(u);
   const theme = (html.match(/<meta[^>]+name=["']theme-color["'][^>]+content=["'](#[0-9a-f]{3,6})/i) || [])[1] || '';
   const links = [...html.matchAll(/<a\b[^>]*href=["']([^"'#]+)["']/gi)].map(x => abs(x[1])).filter(u => u && new URL(u).host === new URL(base).host && /(galerie|gallery|photo|carte|menu|contact|horaire|infos|a-propos|about|tarif|services|restaurant|hebergement|logement)/i.test(u));
   return { photos, logos, theme, links: [...new Set(links)] };
@@ -66,20 +71,22 @@ async function search(b) {
   }
   if (b.pageText) text = '--- PAGE FOURNIE PAR L\'UTILISATEUR (code HTML copié depuis son navigateur, source fiable et prioritaire) :\n' + String(b.pageText).slice(0, 18000) + '\n' + text;
   if (Array.isArray(b.pageImages)) photos.unshift(...b.pageImages.filter(u => /^https?:\/\//i.test(u)).slice(0, 60));
-  let social = '';
+  let social = ''; const socialLogos = [];
   for (const u of links.filter(x => /facebook\.com|instagram\.com/i.test(x)).slice(0, 2)) {
     try {
       const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
       const r = await fetch(u, { signal: ctl.signal, redirect: 'follow', headers: { 'user-agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)', 'accept-language': 'fr-FR,fr;q=0.9' } }); clearTimeout(tm);
       const h = r.ok ? await r.text() : '';
       const og = k => ((h.match(new RegExp('<meta[^>]+property=["\\\']og:' + k + '["\\\'][^>]+content=["\\\']([^"\\\']+)', 'i')) || [])[1] || '').replace(/&amp;/g, '&').replace(/&#x27;|&#039;/g, "'").replace(/&quot;/g, '"');
-      const img = og('image'); if (img) photos.push(img);
+      const img = og('image'); if (img) { photos.push(img); socialLogos.push(img); }
       const t = [og('title'), og('description')].filter(Boolean).join(' — '); if (t) social += '--- ' + u + ' (aperçu public) : ' + t.slice(0, 600) + '\n';
     } catch (e) { }
   }
   if (social) text += social;
   const uniq = a => [...new Set(a)];
-  photos = uniq(photos).slice(0, 40); logos = uniq(logos).slice(0, 5);
+  { const ig = socialLogos.filter((u, i) => /instagram|cdninstagram/i.test(links.filter(x => /facebook\.com|instagram\.com/i.test(x)).slice(0, 2)[i] || '')); logos.push(...ig, ...socialLogos); }
+  if (site) { try { logos.push('https://www.google.com/s2/favicons?domain=' + new URL(site).host + '&sz=256'); } catch (e) { } }
+  photos = uniq(photos).slice(0, 40); logos = uniq(logos).slice(0, 12);
   const prompt = `Tu prépares la fiche d'un établissement pour une visite virtuelle (NovaTour, Narbonne).
 Liens fournis : ${links.join(' , ') || '(aucun)'}${b.nom ? '\nNom indiqué : ' + b.nom : ''}${b.ville ? '\nVille : ' + b.ville : ''}${b.adresse ? '\nAdresse de l\'établissement visé : ' + b.adresse : ''}${b.tel ? '\nTéléphone connu : ' + b.tel : ''}${b.type ? '\nType imposé : ' + b.type : ''}
 ${text ? 'Texte déjà extrait du site officiel :\n' + text.slice(0, 15000) : "Aucun texte de site : utilise la recherche web (site officiel, Tripadvisor, office de tourisme, presse locale)."}
@@ -89,7 +96,7 @@ Consignes :
 - N'INVENTE RIEN. Une donnée introuvable reste vide. Toute donnée incertaine, contradictoire ou venant d'une seule source douteuse va dans "notes".
 - Détecte le type. Hébergement : pas d'adresse précise, pas d'horaires.
 - Traduis slogan, descCourte, description et services en espagnol, allemand, anglais.
-- Couleurs c1/c2/c3 : celles de la marque (logo, site${theme ? ', theme-color ' + theme : ''}) ; sinon un choix sobre cohérent avec le type d'établissement.
+- Couleurs c1/c2/c3 : celles de la marque (logo, site${theme ? ', theme-color ' + theme : ''}, enseigne, devanture, décor visibles sur les photos). Chaque établissement a SA palette : n'utilise jamais de teinte par défaut ni le bleu sarcelle #2b899d / bleu nuit #1f2a44. Sans identité connue, invente une palette originale et cohérente avec l'ambiance (bistrot, plage, rustique, chic, moderne…) : c1 sombre et profond, c2 accent franc, c3 accent plus clair.
 Réponds UNIQUEMENT par un objet JSON valide, sans texte autour, selon ce modèle :
 ${SCHEMA}`;
   const messages = [{ role: 'user', content: prompt }];
@@ -113,7 +120,7 @@ ${SCHEMA}`;
   return { fiche: f, photos, logos, theme };
 }
 async function translate(b) {
-  const j = await claude({ model: MODEL(), max_tokens: 4000, messages: [{ role: 'user', content: 'Traduis du français vers l\'espagnol (es), l\'allemand (de) et l\'anglais (en), en gardant le ton commercial chaleureux et les noms propres. Réponds UNIQUEMENT en JSON : {"slogan":{"es":"","de":"","en":""},"descCourte":{"es":"","de":"","en":""},"description":{"es":"","de":"","en":""},"services":[{"es":"","de":"","en":""}]} (services dans le même ordre et même nombre que ci-dessous).\n\n' + JSON.stringify({ slogan: b.slogan, descCourte: b.descCourte, description: b.description, services: b.services }) }] });
+  const j = await claude({ model: MODEL(), max_tokens: 12000, messages: [{ role: 'user', content: 'Traduis du français vers l\'espagnol (es), l\'allemand (de) et l\'anglais (en), en gardant le ton commercial chaleureux et les noms propres. Réponds UNIQUEMENT en JSON : {"slogan":{"es":"","de":"","en":""},"descCourte":{"es":"","de":"","en":""},"description":{"es":"","de":"","en":""},"services":[{"es":"","de":"","en":""}],"cats":[{"es":"","de":"","en":""}],"descs":[{"es":"","de":"","en":""}]} (services, cats et descs dans le même ordre et le même nombre que ci-dessous ; cats = noms de catégories de carte, descs = descriptions de plats ; garde les noms de plats et noms propres tels quels).\n\n' + JSON.stringify({ slogan: b.slogan, descCourte: b.descCourte, description: b.description, services: b.services, cats: b.cats || [], descs: b.descs || [] }) }] });
   return jsonOf(textOf(j));
 }
 
@@ -157,13 +164,13 @@ async function browse(b) {
   return { resultats: out.slice(0, 80), total: out.length };
 }
 
-const PATCH_KEYS = ['nom', 'ville', 'type', 'slogan', 'descCourte', 'description', 'adresse', 'tel', 'email', 'site', 'facebook', 'instagram', 'booking', 'horaires', 'services', 'carteTxt', 'c1', 'c2', 'c3', 'police', 'logoForme'];
+const PATCH_KEYS = ['nom', 'ville', 'type', 'slogan', 'descCourte', 'description', 'adresse', 'tel', 'email', 'site', 'facebook', 'instagram', 'booking', 'horaires', 'services', 'carteTxt', 'c1', 'c2', 'c3', 'police', 'logoForme', 'style', 'pstyle'];
 async function assist(b) {
   const hist = (b.history || []).map(m => (m.r === 'u' ? 'Utilisateur : ' : 'Assistant : ') + String(m.t || '').slice(0, 400)).join('\n');
   const prompt = `Tu es l'assistant intégré à NovaGen, l'outil de Sylvain (NovaVisio / NovaTour) qui génère les pages d'une visite virtuelle (intro, infos, galerie, carte, réservation, boutons) pour UN établissement.
 Fiche actuelle (JSON, texte en français) :
 ${JSON.stringify(b.fiche)}
-Photos : ${b.nbPhotos} (numérotées à partir de 1). Photo de fond de l'intro : n°${(b.fond || 0) + 1}.
+${b.page ? 'Page concernée par la demande : ' + b.page + '.\n' : ''}Photos : ${b.nbPhotos} (numérotées à partir de 1). Photo de fond de l'intro : n°${(b.fond || 0) + 1}.
 ${hist ? 'Échanges récents :\n' + hist + '\n' : ''}
 Demande : ${b.instruction}
 
@@ -172,6 +179,7 @@ Réponds UNIQUEMENT par un objet JSON valide :
 Règles :
 - patch : clés autorisées = ${PATCH_KEYS.join(', ')}. slogan, descCourte (courte, 140 car. max) et description (longue) = texte français simple ; services = tableau de textes français ; horaires = tableau de 7 textes (lundi→dimanche, ex. "12h–14h · 19h–22h" ou "Fermé") ; c1/c2/c3 = couleurs #hex ; type = restaurant | hebergement | commerce ; police = serif | sans ; logoForme = libre | rond.
 - Pour modifier la carte, renvoie la carte COMPLÈTE dans carteTxt, au format : lignes "# Catégorie" puis "Plat | prix | description" (en reprenant ce qui existe déjà et en appliquant le changement).
+- Style visuel : 4 styles existent (1 Classique, 2 Ardoise, 3 Moderne, 4 Magazine). style = pour toutes les pages ; pstyle = objet {intro|infos|galerie|carte|reservation: "1".."4"} pour une seule page. Pour une demande visuelle sur une page précise (page concernée), agis sur pstyle de cette page, sur c1/c2/c3 (couleurs : ex. « plus sombre » → c1 plus foncé) et/ou police (serif|sans), sans toucher aux autres pages.
 - actions : seulement si la demande concerne les photos (remove_photo, set_fond). Sinon tableau vide.
 - N'invente aucune donnée (prix, horaires, téléphone). Si une info manque, demande-la dans "message" sans modifier. N'utilise la recherche web que si la demande l'exige (vérifier ou trouver une information).
 - Ne modifie que ce qui est demandé.`;

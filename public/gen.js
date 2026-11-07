@@ -100,6 +100,16 @@ function fontCss(f) {
   return ff('DM Serif Display', 400, 'dmserif') + ff('Great Vibes', 400, 'greatvibes') + [400, 600, 700, 800].map(w => ff('Montserrat', w, 'm' + w)).join('\n') + '\n';
 }
 
+
+/* ---------- identité propre à chaque établissement : palette + style dérivés du nom ---------- */
+const hashStr = x => { let h = 5381; for (const c of String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()) h = ((h << 5) + h + c.charCodeAt(0)) >>> 0; return h; };
+const hsl = (h, sa, l) => { h = ((h % 360) + 360) % 360; sa /= 100; l /= 100; const a = sa * Math.min(l, 1 - l), k = n => { const t = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(t - 3, 9 - t, 1)); }; return rh([k(0) * 255, k(8) * 255, k(4) * 255]); };
+const PALS = [['#2b1a14', '#c0602f', '#f0a868'], ['#1f261a', '#7f8f2e', '#d4c86a'], ['#10243a', '#2f7fb0', '#8fd0e8'], ['#2a1018', '#a3263f', '#f09aa9'], ['#2a2210', '#d9a21b', '#f6d77a'], ['#11261d', '#2f8a56', '#9be0b4'], ['#25142e', '#8a3fa8', '#d8a8ec'], ['#2b1c12', '#b8733a', '#f0c9a0'], ['#1c2128', '#5b7a99', '#b8cde0'], ['#2e1614', '#e0584a', '#ffb1a6'], ['#1f1d33', '#7367c9', '#c9c3f5'], ['#1a1a1a', '#c9a24a', '#f0dc9a'], ['#2e1a22', '#d97a9a', '#f7c6d6'], ['#301a0a', '#e07a10', '#ffc16b']];
+function genPalette(nom, type) { const H = hashStr(nom + '|' + (type || '')), p = PALS[H % PALS.length]; return { c1: p[0], c2: p[1], c3: p[2] }; }
+const STYLES = [['1', 'Classique'], ['2', 'Ardoise'], ['3', 'Moderne'], ['4', 'Magazine']];
+const styleOf = f => { const pg = f._pg && f.pstyle && f.pstyle[f._pg]; return ['1', '2', '3', '4'].includes(String(pg)) ? String(pg) : ['1', '2', '3', '4'].includes(String(f.style)) ? String(f.style) : String(hashStr(f.nom) % 4 + 1); };
+const styleOfPg = (f, pg) => styleOf(Object.assign({}, f, { _pg: pg }));
+
 /* ---------- fonds : motif selon le type d'établissement + photo allégée ---------- */
 function motif(f, color, op, white) {
   const c = color, o = op, k = f.type;
@@ -130,7 +140,7 @@ body{background:${motif(f, c2, .09)},linear-gradient(160deg,#fff 0%,var(--bg) 55
 .h{${hf}}
 .top{position:sticky;top:0;z-index:30;background:${mix(c1, '#000000', .06)};border-bottom:3px solid var(--c2);display:flex;align-items:center;gap:14px;padding:9px 20px}
 .visite .top{padding-right:84px}
-.top img{height:46px;width:46px;object-fit:contain;border-radius:${f.logoForme === 'rond' ? '50%' : '8px'};background:${f.logoForme === 'rond' ? '#fff' : 'transparent'};${f.logoForme === 'rond' ? 'border:2px solid var(--hl)' : ''}}
+.top img{height:46px;width:46px;object-fit:contain;border-radius:50%;background:${f._logoLight ? mix(c1, '#000000', .1) : '#fff'};padding:3px;border:2px solid var(--hl)}
 .top small{display:block;${sm};color:var(--hl);line-height:1.1}
 .top b{display:block;font-size:20px;color:#fff;line-height:1.15}
 .lang{margin-left:auto;display:flex;gap:4px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.25);border-radius:14px;padding:3px}
@@ -184,7 +194,7 @@ function header(f, ctx, sub, withStatus) {
 function shell(f, ctx, { title, css = '', body, js = '', sch = null }) {
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(title)}</title> <meta name="description" content="${esc(f.descCourte?.fr || f.description?.fr || f.slogan?.fr || f.nom)}"><meta property="og:title" content="${esc(f.nom)}"><meta property="og:description" content="${esc(f.descCourte?.fr || f.description?.fr || '')}">
 <script>if(/[?&]visite\\b/.test(location.search))document.documentElement.classList.add('visite')</script>
-<style>${baseCss(f)}${css}</style></head><body>${body}${langJs(ctx.D, sch)}${js ? `<script>${js}</script>` : ''}</body></html>`;
+<style>${baseCss(f)}${css}</style></head><body class="s${styleOf(f)}">${body}${langJs(ctx.D, sch)}${js ? `<script>${js}</script>` : ''}</body></html>`;
 }
 const schOf = f => { const h = (f.horaires || []).map(parseHours); return h.some(x => x.length) ? h : null; };
 const fontFiles = f => ['dmserif', 'greatvibes', 'm400', 'm600', 'm700', 'm800'].map(n => ['assets/fonts/' + n + '.woff2', { url: 'fonts/' + n + '.woff2' }]);
@@ -209,7 +219,7 @@ function pageInfos(f) {
   const soc = [f.facebook && ['Facebook', f.facebook], f.instagram && ['Instagram', f.instagram]].filter(Boolean);
   const rs = soc.length ? `<div class="card"><h2 class="h">${t(T.reseaux)}</h2><div class="row">${soc.map(([n, u]) => `<a class="btn o" href="${esc(u)}" target="_blank" rel="noopener">${n}</a>`).join('')}</div></div>` : '';
   const sub = f.slogan?.fr ? t(f.slogan, 'p', 'sl') : '';
-  const hero = `<section class="hero"><div class="hc"><h1 class="h">${esc(f.nom)}</h1>${sub}${f.descCourte?.fr ? t(f.descCourte, 'p', 'sd') : ''}<div class="row" style="margin-top:18px">${acts.join('')}</div></div></section>`;
+  const hero = `<section class="hero"><div class="hp"></div><div class="hc">${f._logo ? `<img class="hl" src="assets/img/${f._logo}" alt="">` : ''}<h1 class="h">${esc(f.nom)}</h1>${sub}${f.descCourte?.fr ? t(f.descCourte, 'p', 'sd') : ''}<div class="row" style="margin-top:18px">${acts.join('')}</div></div></section>`;
   const about = f.description?.fr ? `<div class="card ab">${t(f.description, 'p', 'mu')}</div>` : '';
   const body = header(f, ctx, T.infos, !!sch) + hero + `<div class="wrap ov">${about}${hr}${adr}${cont}${sv}${rs}</div>`;
   const c1 = mix(f.c1, '#000000', .3), hl = lum(f.c2) > .4 ? f.c2 : mix(f.c2, '#ffffff', .55);
@@ -221,13 +231,22 @@ function pageInfos(f) {
 .hero .btn{box-shadow:0 8px 22px rgba(0,0,0,.28)}.hero .btn.o{background:rgba(255,255,255,.14);color:#fff;border:1.5px solid rgba(255,255,255,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .wrap.ov{position:relative;margin-top:-34px;padding-top:0}.ov .card{animation:none;box-shadow:0 10px 30px rgba(20,20,30,.1)}.ab{border-top:4px solid var(--c2)}.ab p{font-size:15px;line-height:1.75}
 .card h2.h{display:flex;align-items:center;gap:12px}.card h2.h::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
-@media(max-width:760px){.hc{padding:52px 18px 56px}}`;
+.hl,.hp{display:none}.hl{width:96px;height:96px;border-radius:50%;object-fit:contain;padding:8px;background:${f._logoLight ? c1 : '#fff'};border:3px solid ${hl};box-shadow:0 12px 30px rgba(0,0,0,.4);margin-bottom:16px}
+body.s2 .hero{text-align:center}body.s2 .hc{display:flex;flex-direction:column;align-items:center}body.s2 .hl{display:block;width:118px;height:118px}body.s2 .hero .row{justify-content:center}body.s2 .hero .sd{margin-left:auto;margin-right:auto}body.s2 .wrap.ov{margin-top:-24px}
+body.s3 .hero{min-height:clamp(280px,44vh,420px);background:linear-gradient(115deg,${c1} 0%,${mix(c1, f.c2, .4)} 100%)}body.s3 .hero::before{background:${motif(f, '#ffffff', .09)}}
+body.s3 .hp{display:block;position:absolute;top:0;right:0;bottom:0;width:48%;background:${f._fond ? 'url(assets/img/fond.jpg) center/cover' : mix(f.c2, c1, .3)};-webkit-mask-image:linear-gradient(90deg,transparent,#000 42%);mask-image:linear-gradient(90deg,transparent,#000 42%)}body.s3 .hc{position:relative;z-index:1}body.s3 .hero .sd{max-width:46%}body.s3 .hl{display:block;width:84px;height:84px}
+body.s4 .hero{min-height:clamp(340px,62vh,560px);background:${f._fond ? `linear-gradient(180deg,${c1}22 0%,${c1}22 40%,${c1}e0 100%),url(assets/img/fond.jpg) center/cover` : `linear-gradient(135deg,${c1},${mix(c1, f.c2, .55)})`}}body.s4 .hero h1{font-size:clamp(46px,12vw,112px);line-height:.92;letter-spacing:-.01em}body.s4 .hc{padding-bottom:42px}body.s4 .hl{display:block;position:absolute;top:26px;left:22px;width:70px;height:70px;margin:0}body.s4 .ab{border-top:0;border-left:5px solid var(--c2);border-radius:4px 18px 18px 4px}
+@media(max-width:760px){.hc{padding:52px 18px 56px}body.s3 .hp{width:100%;opacity:.35}body.s3 .hero .sd{max-width:none}}`;
   return { 'index.html': shell(f, ctx, { title: f.nom + ' — Infos', css, body, sch }) };
 }
 
 function pageGalerie(f, photos) {
   const ctx = mk(), { t } = ctx;
   const css = `.g{columns:3 240px;column-gap:12px}.g a{display:block;margin-bottom:12px;border-radius:14px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.12);cursor:zoom-in;break-inside:avoid;background:var(--bg2)}.g img{display:block;width:100%;height:auto;transition:.35s}.g a:hover img{transform:scale(1.04)}
+body.s2 .g{columns:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:22px 18px;padding:6px}body.s2 .g a{margin:0;background:#fff;padding:10px 10px 38px;border-radius:3px;box-shadow:0 10px 26px rgba(0,0,0,.2);transform:rotate(-1.6deg);transition:.3s}body.s2 .g a:nth-child(even){transform:rotate(1.8deg)}body.s2 .g a:nth-child(3n){transform:rotate(-.6deg)}body.s2 .g a:hover{transform:none;z-index:2}body.s2 .g img{aspect-ratio:1;object-fit:cover}
+body.s3 .g{columns:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}body.s3 .g a{margin:0;border-radius:18px;box-shadow:none}body.s3 .g a:first-child{grid-column:span 2;grid-row:span 2}body.s3 .g img{height:100%;min-height:150px;aspect-ratio:4/3;object-fit:cover}body.s3 .g a:first-child img{aspect-ratio:auto}
+body.s4 .g{columns:auto;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-flow:dense;gap:4px}body.s4 .g a{margin:0;border-radius:0;box-shadow:none}body.s4 .g a:nth-child(5n+1){grid-column:span 2;grid-row:span 2}body.s4 .g a:nth-child(7n+4){grid-row:span 2}body.s4 .g img{height:100%;min-height:150px;aspect-ratio:1;object-fit:cover}body.s4 .wrap{max-width:1100px}
+@media(max-width:640px){body.s3 .g,body.s4 .g{grid-template-columns:repeat(2,1fr)}body.s4 .g a:nth-child(5n+1){grid-column:span 2}}
 #lb{position:fixed;inset:0;z-index:99;background:rgba(10,10,10,.93);display:none;align-items:center;justify-content:center;touch-action:pan-y}#lb.on{display:flex}#lb img{max-width:94vw;max-height:88vh;border-radius:10px}
 #lb button{position:absolute;background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:50%;width:48px;height:48px;font-size:24px;cursor:pointer}#lb .x{top:16px;right:16px}#lb .p{left:14px;top:50%}#lb .n{right:14px;top:50%}#lb .c{position:absolute;bottom:18px;color:#fff;font:600 13px Montserrat}`;
   const body = header(f, ctx, T.galerie, false) + `<div class="wrap"><div class="g">${photos.map((p, i) => `<a href="assets/img/${p}" data-n="${i}"><img loading="lazy" src="assets/img/${p}" alt="${esc(f.nom)} ${i + 1}"></a>`).join('')}</div></div><div id="lb"><button class="x" aria-label="x">✕</button><button class="p">‹</button><img alt=""><button class="n">›</button><div class="c"></div></div>`;
@@ -240,7 +259,7 @@ let sx=0;lb.addEventListener('touchstart',e=>sx=e.touches[0].clientX);lb.addEven
 }
 
 function pageCarte(f) {
-  const ctx = mk(), { t } = ctx, cats = parseCarte(f.carteTxt);
+  const ctx = mk(), { t } = ctx, cats = parseCarte(f.carteTxt), ctr = f.carteTr || {}; let di = 0; const catT = i => t(Object.assign({ fr: cats[i].cat }, (ctr.cats || [])[i] || {}), 'span');
   const dk = mix(f.c1, '#000000', .45), hl = lum(f.c2) > .4 ? f.c2 : mix(f.c2, '#ffffff', .55);
   const css = `body{background:${dk}}body::before{content:"";position:fixed;inset:-10px;z-index:-1;background:${f._fond ? `linear-gradient(180deg,${dk}cc,${dk}f2),url(assets/img/fond.jpg) center/cover;filter:blur(7px) saturate(1.15)` : `radial-gradient(circle at 12% 8%,${f.c2}66,transparent 50%),radial-gradient(circle at 92% 92%,${hl}33,transparent 45%),${dk}`}}
 body::after{content:"";position:fixed;inset:0;z-index:-1;background:${motif(f, '#ffffff', .05)},${GRAIN};background-blend-mode:normal,overlay;opacity:.22;pointer-events:none}
@@ -248,9 +267,14 @@ body::after{content:"";position:fixed;inset:0;z-index:-1;background:${motif(f, '
 .card.sec{background:#fffdf8;border:0;border-radius:6px;padding:28px 26px 22px;box-shadow:0 22px 50px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.4) inset;position:relative}.card.sec::before{content:"";position:absolute;inset:8px;border:1px solid ${mix(f.c2, '#ffffff', .6)};border-radius:3px;pointer-events:none}
 .card.sec h2{font-size:26px;text-align:center;margin-bottom:6px;padding-bottom:16px;position:relative}.card.sec h2::after{content:"";position:absolute;left:50%;bottom:0;width:56px;height:3px;border-radius:3px;background:var(--c2);transform:translateX(-50%)}
 .it{display:flex;gap:14px;justify-content:space-between;align-items:baseline;padding:13px 4px;border-bottom:1px dotted ${mix(f.c2, '#000000', .1)}66}.it:last-child{border:0}.it b{font-size:15px;color:var(--ink)}.it p{font-size:13px;color:var(--mu);margin-top:3px;line-height:1.45}.it .pr{font-weight:800;color:var(--c2);white-space:nowrap;font-size:15px}.sec{display:none}.sec.on{display:block}`;
-  const body = header(f, ctx, T.carte, !!schOf(f)) + `<div class="wrap"><div class="tabs">${cats.map((c, i) => `<button data-k="${i}" class="${i ? '' : 'on'}">${esc(c.cat || '·')}</button>`).join('')}</div>${cats.map((c, i) => `<div class="card sec ${i ? '' : 'on'}" id="s${i}"><h2 class="h">${esc(c.cat)}</h2>${c.items.map(x => `<div class="it"><div><b>${esc(x.nom)}</b>${x.desc ? `<p>${esc(x.desc)}</p>` : ''}</div>${x.prix ? `<span class="pr">${esc(x.prix)}</span>` : ''}</div>`).join('')}</div>`).join('')}</div>`;
+  const css2 = `body.s2{background:${mix(f.c1, '#000000', .5)}}body.s2 .card.sec{background:${mix(f.c1, '#000000', .38)};border-radius:10px;box-shadow:0 22px 50px rgba(0,0,0,.5),0 0 0 6px ${mix(f.c1, '#ffffff', .12)};color:#fff}body.s2 .card.sec::before{border:1.5px dashed rgba(255,255,255,.3);border-radius:6px}body.s2 .card.sec h2{color:${hl};font:400 clamp(34px,6vw,50px) "Great Vibes",cursive}body.s2 .card.sec h2::after{background:${hl};height:2px;width:90px}body.s2 .it{border-bottom:1px dotted rgba(255,255,255,.35)}body.s2 .it b{color:#fff}body.s2 .it p{color:rgba(255,255,255,.65)}body.s2 .it .pr{color:${hl};font-family:"DM Serif Display",Georgia,serif;font-size:19px;font-weight:400}
+body.s3,body.s4{background:var(--bg)}body.s3::before,body.s3::after,body.s4::before,body.s4::after{display:none}body.s3 .tabs button,body.s4 .tabs button{background:#fff;border:1.5px solid var(--c1);color:var(--c1);backdrop-filter:none}body.s3 .tabs button.on,body.s4 .tabs button.on{background:var(--c1);color:#fff}
+body.s3 .card.sec{background:transparent;box-shadow:none;border-radius:0;padding:0}body.s3 .card.sec::before{display:none}body.s3 .card.sec.on{display:grid;grid-template-columns:1fr 1fr;gap:12px}body.s3 .card.sec h2{grid-column:1/-1;text-align:left;font-size:clamp(30px,5vw,42px);padding:0 0 6px;margin:0}body.s3 .card.sec h2::after{left:0;transform:none}body.s3 .it{flex-direction:column-reverse;gap:8px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 6px 18px rgba(0,0,0,.06)}body.s3 .it .pr{align-self:flex-start;background:var(--c2);color:var(--ac);border-radius:30px;padding:4px 12px;font-size:14px}
+body.s4 .card.sec{background:transparent;box-shadow:none;border-radius:0;padding:4px 0;columns:2 300px;column-gap:46px}body.s4 .card.sec::before{display:none}body.s4 .card.sec h2{column-span:all;text-align:left;font-size:clamp(34px,6vw,54px);border-top:4px double var(--c1);padding:16px 0 4px;margin-bottom:10px}body.s4 .card.sec h2::after{display:none}body.s4 .it{break-inside:avoid;border-bottom:1px solid var(--line)}body.s4 .it .pr{font-family:"DM Serif Display",Georgia,serif;font-weight:400;font-size:20px;color:var(--c1)}
+@media(max-width:640px){body.s3 .card.sec.on{grid-template-columns:1fr}}`;
+  const body = header(f, ctx, T.carte, !!schOf(f)) + `<div class="wrap"><div class="tabs">${cats.map((c, i) => `<button data-k="${i}" class="${i ? '' : 'on'}">${c.cat ? catT(i) : '·'}</button>`).join('')}</div>${cats.map((c, i) => `<div class="card sec ${i ? '' : 'on'}" id="s${i}"><h2 class="h">${catT(i)}</h2>${c.items.map(x => `<div class="it"><div><b>${esc(x.nom)}</b>${x.desc ? t(Object.assign({ fr: x.desc }, (ctr.descs || [])[di++] || {}), 'p') : ''}</div>${x.prix ? `<span class="pr">${esc(x.prix)}</span>` : ''}</div>`).join('')}</div>`).join('')}</div>`;
   const js = `document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button,.sec').forEach(e=>e.classList.remove('on'));b.classList.add('on');document.getElementById('s'+b.dataset.k).classList.add('on')})`;
-  return { 'index.html': shell(f, ctx, { title: f.nom + ' — Carte', css, body, js, sch: schOf(f) }) };
+  return { 'index.html': shell(f, ctx, { title: f.nom + ' — Carte', css: css + css2, body, js, sch: schOf(f) }) };
 }
 
 function pageResa(f) {
@@ -277,21 +301,21 @@ $('bc').onclick=async()=>{try{await navigator.clipboard.writeText(txt())}catch(e
 function pageIntro(f, hasBg) {
   const D = mk(), L = o => JSON.stringify(obj4(o));
   const c1 = mix(f.c1, '#000000', .35), hl = lum(f.c2) > .4 ? f.c2 : mix(f.c2, '#ffffff', .55);
-  const logo = f._logo ? (f.logoForme === 'rond' ? `<img class="lg" src="assets/img/${f._logo}" alt="">` : `<div class="lgw"><img src="assets/img/${f._logo}" alt="${esc(f.nom)}"></div>`) : `<div class="lgw"><div class="fb">${esc(f.nom)}</div></div>`;
+  const logo = f._logo ? (true ? `<img class="lg" src="assets/img/${f._logo}" alt="">` : `<div class="lgw"><img src="assets/img/${f._logo}" alt="${esc(f.nom)}"></div>`) : `<div class="lgw"><div class="fb">${esc(f.nom)}</div></div>`;
   const sub = f.slogan?.fr ? f.slogan : { fr: [f.type === 'hebergement' ? 'Hébergement' : f.type === 'commerce' ? 'Boutique' : 'Restaurant', f.ville].filter(Boolean).join(' · ') };
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(f.nom)}</title> <meta name="description" content="${esc(f.descCourte?.fr || f.description?.fr || f.slogan?.fr || f.nom)}"><meta property="og:title" content="${esc(f.nom)}"><meta property="og:description" content="${esc(f.descCourte?.fr || f.description?.fr || '')}">
 <script>if(/[?&]visite\\b/.test(location.search))document.documentElement.classList.add('visite')</script>
 <style>${fontCss(f)}*{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden;font-family:Montserrat,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;background:${c1}}
 .bg{position:fixed;inset:0;background:${hasBg ? c1 + ' url(assets/img/bg.jpg) center/cover' : `radial-gradient(circle at 18% 14%,${f.c2}77,transparent 48%),radial-gradient(circle at 88% 92%,${hl}3a,transparent 44%),${c1}`};transform:scale(1.12);opacity:0;animation:bg 4.6s .2s ease-out forwards}
-.bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 42%,${c1}59 0%,${c1}cc 62%,${c1}fa 100%),linear-gradient(160deg,${f.c2}44,transparent 55%),${GRAIN};background-blend-mode:normal,normal,overlay}
-body::after{content:"";position:fixed;inset:2.4vmin;border:1px solid ${hl}77;border-radius:1.8vmin;pointer-events:none;opacity:0;animation:fr 1.6s 1.2s forwards}@keyframes fr{from{opacity:0;transform:scale(1.03)}to{opacity:1;transform:none}}
+.bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 42%,${c1}8c 0%,${c1}a6 55%,${c1}e6 100%),linear-gradient(160deg,${f.c2}44,transparent 55%),${GRAIN};background-blend-mode:normal,normal,overlay}
+body::after{content:"";position:fixed;inset:2.4vmin;border:1px solid ${hl}77;border-radius:1.8vmin;pointer-events:none;opacity:0;animation:fr 1.6s 1.2s forwards}body.s2::after{border:3px double ${hl}99;border-radius:0;inset:3vmin}body.s3::after{border:0;border-radius:0;inset:auto 0 0 0;height:1.2vmin;background:linear-gradient(90deg,transparent,${hl},transparent)}body.s4::after{border:0;border-radius:0;inset:3vmin;background:linear-gradient(${hl},${hl}) 0 0/6vmin 2px no-repeat,linear-gradient(${hl},${hl}) 0 0/2px 6vmin no-repeat,linear-gradient(${hl},${hl}) 100% 0/6vmin 2px no-repeat,linear-gradient(${hl},${hl}) 100% 0/2px 6vmin no-repeat,linear-gradient(${hl},${hl}) 0 100%/6vmin 2px no-repeat,linear-gradient(${hl},${hl}) 0 100%/2px 6vmin no-repeat,linear-gradient(${hl},${hl}) 100% 100%/6vmin 2px no-repeat,linear-gradient(${hl},${hl}) 100% 100%/2px 6vmin no-repeat}@keyframes fr{from{opacity:0;transform:scale(1.03)}to{opacity:1;transform:none}}
 .c{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 6vw 12vmin}
-.lg{width:min(40vmin,340px);height:min(40vmin,340px);border-radius:50%;object-fit:contain;border:clamp(4px,.8vmin,8px) solid ${hl};background:#fff;opacity:0;transform:scale(.6) rotate(-8deg);animation:av 1.2s .5s cubic-bezier(.2,1.2,.3,1) forwards,fl 4s 1.8s ease-in-out infinite;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.lg{width:min(40vmin,340px);height:min(40vmin,340px);border-radius:50%;object-fit:contain;padding:1.6vmin;border:clamp(4px,.8vmin,8px) solid ${hl};background:${f._logoLight ? c1 : '#fff'};opacity:0;transform:scale(.6) rotate(-8deg);animation:av 1.2s .5s cubic-bezier(.2,1.2,.3,1) forwards,fl 4s 1.8s ease-in-out infinite;box-shadow:0 18px 50px rgba(0,0,0,.5)}
 .lgw{opacity:0;transform:scale(.7);animation:av 1.1s .5s cubic-bezier(.2,1.2,.3,1) forwards;text-align:center;padding:3.4vmin 5vmin;border-radius:3vmin;background:${c1}b8;border:2px solid ${hl};box-shadow:0 18px 50px rgba(0,0,0,.55)}
 .lgw img{display:block;width:min(52vmin,440px);max-height:30vmin;object-fit:contain}.fb{font:800 clamp(22px,5vmin,48px)/1.1 Montserrat,sans-serif;color:#fff;letter-spacing:.04em}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.hello{margin-top:3.4vmin;${f.police === 'sans' ? 'font:800 clamp(13px,2.4vmin,24px)/1 Montserrat,sans-serif;letter-spacing:.35em;text-transform:uppercase' : 'font:400 clamp(30px,6.4vmin,64px)/1 "Great Vibes",cursive'};color:${hl};opacity:0;animation:up .9s 1.7s forwards}
+.hello{margin-top:3.4vmin;${f.police === 'sans' ? 'font:800 clamp(13px,2.4vmin,24px)/1 Montserrat,sans-serif;letter-spacing:.35em;text-transform:uppercase' : 'font:400 clamp(30px,6.4vmin,64px)/1 "Great Vibes",cursive'};color:${mix(hl, '#ffffff', .4)};text-shadow:0 2px 18px rgba(0,0,0,.6);opacity:0;animation:up .9s 1.7s forwards}
 .sub{margin-top:1.4vmin;font-size:clamp(11px,1.9vmin,18px);letter-spacing:.3em;text-transform:uppercase;font-weight:800;color:#fff;opacity:0;animation:up .8s 2.4s forwards}
 .sig{position:fixed;left:0;right:0;bottom:4vmin;display:flex;justify-content:center;align-items:center;gap:14px;opacity:0;animation:up .8s 3.1s forwards}
 .sig .v{font-weight:600;letter-spacing:.3em;text-transform:uppercase;color:#7fd0e0;font-size:clamp(11px,1.7vmin,18px)}
@@ -300,7 +324,7 @@ body::after{content:"";position:fixed;inset:2.4vmin;border:1px solid ${hl}77;bor
 @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 body.fin{animation:fin .8s forwards}@keyframes fin{to{opacity:0}}
 @media(orientation:portrait){.lg{width:58vmin;height:58vmin}.lgw img{width:68vw}.sub{font-size:2.8vmin}.sig{flex-direction:column;gap:1.4vmin}.sig .v{font-size:2.8vmin}.sig .n{font-size:5.6vmin}}
-</style></head><body><div class="bg"></div><div class="c">${logo}<h1 class="vh">${esc(f.nom)}</h1><div class="hello" id="hi">${esc(T.bienvenue.fr)}</div><div class="sub" id="sb">${esc(obj4(sub).fr)}</div></div>
+</style></head><body class="s${styleOf(f)}"><div class="bg"></div><div class="c">${logo}<h1 class="vh">${esc(f.nom)}</h1><div class="hello" id="hi">${esc(T.bienvenue.fr)}</div><div class="sub" id="sb">${esc(obj4(sub).fr)}</div></div>
 <div class="sig"><span class="v" id="vi">${esc(T.visite.fr)}</span><span class="n"><i>by</i> NovaVisio</span></div><svg id="iris" style="position:fixed;inset:0;width:100%;height:100%;z-index:50;pointer-events:none"><defs>
 <linearGradient id="ng" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#345C95"/><stop offset=".55" stop-color="#2B899D"/><stop offset="1" stop-color="#125C68"/></linearGradient>
 <mask id="mk"><rect id="mr" fill="#fff"/><polygon id="hole" fill="#000"/></mask></defs>
@@ -391,7 +415,10 @@ async function pageBoutons(f) {
 /* ---------- assemblage ---------- */
 /* p = {fiche, photos:[{blob}], logo:Blob|null, fond:index} ; retourne {nom: {nom_fichier: contenu}} */
 async function buildAll(p, which) {
-  const f = Object.assign({ c1: '#1f2a44', c2: '#2b899d', police: 'serif', logoForme: 'libre', type: 'restaurant', horaires: [], services: [] }, p.fiche);
+  const f = Object.assign({ police: 'serif', logoForme: 'libre', type: 'restaurant', horaires: [], services: [] }, p.fiche);
+  f.logoForme = 'rond'; f._logoLight = !!p.logoLight;
+  if (!p.fiche?.c2 || f.c2 === '#2b899d') Object.assign(f, genPalette(f.nom, f.type));
+  if (!p.logo && typeof monogram === 'function') { p = Object.assign({}, p, { logo: await monogram(f), logoLight: true }); f._logoLight = true; }
   f._logo = p.logo ? 'logo.png' : '';
   const imgs = {}; if (p.logo) imgs['assets/img/logo.png'] = p.logo;
   const names = p.photos.map((ph, i) => { const n = String(i + 1).padStart(2, '0') + '.jpg'; imgs['assets/img/' + n] = ph.blob; return n; });
@@ -401,15 +428,17 @@ async function buildAll(p, which) {
   const hasPh = names.length > 0, heb = f.type === 'hebergement';
   const want = k => !which || which.includes(k);
   const logoOnly = p.logo ? { 'assets/img/logo.png': p.logo } : {};
-  const fondF = {}; if (hasPh && (want('infos') || want('carte'))) { f._fond = true; fondF['assets/img/fond.jpg'] = await toFond(p.photos[Math.min(p.fond || 0, names.length - 1)].blob); }
-  if (want('intro')) {
-    const bgIdx = Math.min(p.fond || 0, names.length - 1), bgf = hasPh ? { 'assets/img/bg.jpg': p.photos[bgIdx].blob } : {};
+  const fondIdx = pg => Math.min(Math.max((f.pfond && f.pfond[pg] != null) ? +f.pfond[pg] : (p.fond || 0), 0), names.length - 1);
+  const fondFor = async pg => hasPh ? { 'assets/img/fond.jpg': await toFond(p.photos[fondIdx(pg)].blob) } : {};
+  if (hasPh) f._fond = true;
+  if (want('intro')) { f._pg = 'intro';
+    const bgIdx = fondIdx('intro'), bgf = hasPh ? { 'assets/img/bg.jpg': p.photos[bgIdx].blob } : {};
     out.intro = withFonts(pageIntro(f, hasPh), Object.assign({}, logoOnly, bgf));
   }
-  if (want('infos')) out.infos = withFonts(pageInfos(f), Object.assign({}, logoOnly, fondF));
-  if (want('galerie') && hasPh) out.galerie = withFonts(pageGalerie(f, names), imgs);
-  if (want('carte') && !heb && parseCarte(f.carteTxt).length) out.carte = withFonts(pageCarte(f), Object.assign({}, logoOnly, fondF));
-  if (want('reservation') && f.type !== 'commerce') out.reservation = withFonts(pageResa(f), logoOnly);
+  if (want('infos')) { f._pg = 'infos'; out.infos = withFonts(pageInfos(f), Object.assign({}, logoOnly, await fondFor('infos'))); };
+  if (want('galerie') && hasPh) { f._pg = 'galerie'; } if (want('galerie') && hasPh) out.galerie = withFonts(pageGalerie(f, names), imgs);
+  if (want('carte') && !heb && parseCarte(f.carteTxt).length) { f._pg = 'carte'; out.carte = withFonts(pageCarte(f), Object.assign({}, logoOnly, await fondFor('carte'))); };
+  if (want('reservation') && f.type !== 'commerce') { f._pg = 'reservation'; } if (want('reservation') && f.type !== 'commerce') out.reservation = withFonts(pageResa(f), logoOnly);
   if (want('boutons')) out.boutons = await pageBoutons(f);
   return out;
 }
