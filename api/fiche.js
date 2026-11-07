@@ -166,14 +166,15 @@ async function browse(b) {
 
 // Carte à partir d'un PDF / photo : Claude lit le document et renvoie la carte au format NovaGen
 async function carteFile(b) {
-  const files = (b.files || []).slice(0, 6); if (!files.length) throw new Error('Aucun fichier reçu');
+  const files = (b.files || []).slice(0, 4); if (!files.length) throw new Error('Aucun fichier reçu');
   const content = files.map(f => f.type === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.b64 } } : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: f.b64 } });
-  content.push({ type: 'text', text: `Voici la carte (menu) de l'établissement « ${String(b.nom || '').slice(0, 80)} »${b.ville ? ' à ' + String(b.ville).slice(0, 60) : ''}, en PDF ou en photo(s). Transcris-la FIDÈLEMENT, sans rien inventer ni omettre, dans ce format texte (une ligne par plat) :
+  content.push({ type: 'text', text: `Voici la carte (menu) de l'établissement « ${String(b.nom || '').slice(0, 80)} »${b.ville ? ' à ' + String(b.ville).slice(0, 60) : ''}, en PDF ou en photo(s). Ce sont seulement certaines pages de la carte (lot ${String(b.part || '1/1')}) : transcris uniquement ce qui figure sur ces pages. Si une page commence au milieu d'une catégorie, n'écris pas d'en-tête « # » et continue directement avec les plats. Transcris-la FIDÈLEMENT, sans rien inventer ni omettre, dans ce format texte (une ligne par plat) :
 # Nom de la catégorie | sous-titre ou description de la catégorie (facultatif)
 Nom du plat | prix | description / ingrédients (facultatif)
 Règles : garde les noms et le texte d'origine (corrige seulement les fautes évidentes de lecture) ; prix écrits comme sur la carte avec le symbole € (ex. 12,50 €) ; plat à plusieurs formats ou menu : mets le plus bas prix ou le prix du menu et précise le reste dans la description ; ajoute 🌿 juste après le nom d'un plat marqué végétarien/végé sur la carte ; ignore publicités, adresses et mentions légales ; si un mot est illisible, laisse-le de côté plutôt que de le deviner.
 Réponds UNIQUEMENT par un objet JSON : {"carteTxt":"le texte de la carte avec des \n entre les lignes","notes":"points incertains ou illisibles (vide s'il n'y en a pas)"}` });
   const j = await claude({ model: MODEL(), max_tokens: 8000, messages: [{ role: 'user', content }] });
+  if (j.stop_reason === 'max_tokens') throw new Error('Page trop dense pour être lue en une fois : envoie-la en deux photos.');
   const r = jsonOf(textOf(j)); if (!String(r.carteTxt || '').trim()) throw new Error('Aucun plat lisible dans ce fichier');
   return { carteTxt: String(r.carteTxt), notes: String(r.notes || '') };
 }

@@ -207,7 +207,7 @@ function ficheHtml(f) {
 async function pdfToJpegs(file) {
   if (!window.pdfjsLib) { await new Promise((ok, ko) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'; s.onload = ok; s.onerror = () => ko(new Error('Lecteur PDF indisponible')); document.head.appendChild(s); }); pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise, out = [];
-  for (let i = 1; i <= Math.min(pdf.numPages, 6); i++) { const pg = await pdf.getPage(i), v0 = pg.getViewport({ scale: 1 }), vp = pg.getViewport({ scale: 1500 / Math.max(v0.width, v0.height) }), c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; out.push(await new Promise(r => c.toBlob(r, 'image/jpeg', .82))); }
+  for (let i = 1; i <= Math.min(pdf.numPages, 30); i++) { const pg = await pdf.getPage(i), v0 = pg.getViewport({ scale: 1 }), vp = pg.getViewport({ scale: 1800 / Math.max(v0.width, v0.height) }), c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; out.push(await new Promise(r => c.toBlob(r, 'image/jpeg', .82))); }
   return out;
 }
 async function importCarte(list, btn) {
@@ -215,13 +215,17 @@ async function importCarte(list, btn) {
   try {
     say('Préparation des fichiers…'); const files = [];
     for (const x of list) {
-      if (x.type === 'application/pdf' || /\.pdf$/i.test(x.name)) { if (x.size <= 3200000) files.push({ type: 'application/pdf', b64: await toB64(x) }); else for (const bl of await pdfToJpegs(x)) files.push({ type: 'image/jpeg', b64: await toB64(bl) }); }
-      else files.push({ type: 'image/jpeg', b64: await toB64((await toJpeg(x, 1700)).blob) });
+      if (x.type === 'application/pdf' || /\.pdf$/i.test(x.name)) { for (const bl of await pdfToJpegs(x)) files.push({ type: 'image/jpeg', b64: await toB64(bl) }); }
+      else files.push({ type: 'image/jpeg', b64: await toB64((await toJpeg(x, 1800)).blob) });
     }
-    if (files.length > 6) files.length = 6;
-    if (files.reduce((n, x) => n + x.b64.length, 0) > 4300000) throw new Error('Fichier trop lourd : envoie moins de pages ou une version allégée.');
-    say('Claude lit la carte… (jusqu\'à 1 minute)');
-    const r = await api('/api/fiche', { mode: 'carte_file', files, nom: f.nom, ville: f.ville });
+    if (!files.length) throw new Error('Aucune page lisible dans ce fichier.');
+    /* lots de 2 pages (réponse courte et rapide), 3 lots en parallèle, texte recollé dans l'ordre */
+    const lots = []; for (let i = 0; i < files.length; i += 2) lots.push(files.slice(i, i + 2));
+    const res = new Array(lots.length); let done = 0, next = 0;
+    say('Claude lit la carte… 0/' + lots.length);
+    const worker = async () => { while (next < lots.length) { const i = next++; let err; for (let t = 0; t < 2; t++) { try { res[i] = await api('/api/fiche', { mode: 'carte_file', files: lots[i], nom: f.nom, ville: f.ville, part: (i + 1) + '/' + lots.length }); err = null; break; } catch (e) { err = e; } } if (err) throw err; say('Claude lit la carte… ' + (++done) + '/' + lots.length); } };
+    await Promise.all([worker(), worker(), worker()]);
+    const r = { carteTxt: res.map(x => x.carteTxt.trim()).join('\n'), notes: res.map(x => x.notes).filter(Boolean).join(' · ') };
     const had = (f.carteTxt || '').trim(); f.carteTxt = had && !confirm('Remplacer la carte actuelle par celle du fichier ?\nOK = remplacer, Annuler = ajouter à la suite.') ? had + '\n' + r.carteTxt : r.carteTxt;
     delete f.carteTr; save(); render(); const m2 = $('#cm'); if (m2) m2.textContent = '✔ Carte importée (' + parseCarte(f.carteTxt).reduce((n, c) => n + c.items.length, 0) + ' plats).' + (r.notes ? ' À vérifier : ' + r.notes : '');
     preview('carte');
