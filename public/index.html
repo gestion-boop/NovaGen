@@ -6,7 +6,7 @@
 *{box-sizing:border-box;margin:0;padding:0}[hidden]{display:none!important}
 body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
 header{background:linear-gradient(120deg,var(--b1),var(--b2) 60%,var(--b3));color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px}
-header b{font-size:20px;letter-spacing:.02em}header span{opacity:.8;font-size:13px}
+header b{font-size:20px;letter-spacing:.02em}header .sub{opacity:.8;font-size:13px}#sw{margin-left:auto;position:relative;width:min(440px,100%)}#sw input{margin:0;border:0;background:rgba(255,255,255,.95);border-radius:30px;padding:10px 16px}#qr{position:absolute;top:44px;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 30px rgba(0,0,0,.18);overflow:hidden;display:none;z-index:40}#qr.on{display:block}#qr div{padding:11px 16px;cursor:pointer;font-size:14px;color:var(--ink);display:flex;gap:10px;align-items:center}#qr div:hover,#qr div.sel{background:#e4f1f4}#qr small{color:var(--mu)}@media(max-width:700px){header{flex-wrap:wrap}header .sub{display:none}#sw{margin-left:0;flex:1}}
 .app{display:grid;grid-template-columns:260px 1fr;gap:18px;max-width:1280px;margin:0 auto;padding:18px}
 aside{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;align-self:start;position:sticky;top:12px}
 aside h3{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--mu);margin:4px 4px 10px}
@@ -46,7 +46,7 @@ button.b:hover{filter:brightness(1.08)}button.b:disabled{opacity:.5;cursor:wait}
 @media(max-width:900px){.app{grid-template-columns:1fr}aside{position:static}.g3,.g4{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.g2,.g3,.g4{grid-template-columns:1fr}}
 </style></head><body>
-<header><b>NovaGen</b><span>Générateur de pages NovaTour · intro, infos, galerie, carte, réservation, boutons</span></header>
+<header><b>NovaGen</b><span class="sub">Générateur de pages NovaTour</span><div id="sw"><input id="q" placeholder="🔎 Rechercher un établissement (nom, ville, téléphone…)" autocomplete="off"><div id="qr"></div></div></header>
 <div class="app">
  <aside><h3>Établissements</h3><div id="list"></div><button class="b" style="width:100%;margin-top:10px" id="new">+ Nouvel établissement</button></aside>
  <main id="main"></main>

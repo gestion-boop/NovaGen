@@ -261,3 +261,21 @@ async function preview(k) {
 $('#mc').onclick = () => { $('#modal').classList.remove('on'); $('#mb').innerHTML = ''; };
 $('#new').onclick = async () => { cur = newProject(); await dbPut(cur); renderList(); render(); };
 (async () => { const all = await dbAll(); all.sort((a, b) => b.upd - a.upd); cur = all[0] || null; renderList(); render(); })();
+
+/* ---------- recherche d'un établissement ---------- */
+const norm = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+async function runSearch() {
+  const v = $('#q').value.trim(), box = $('#qr'); if (!v) { box.className = ''; return; }
+  const all = await dbAll(), k = norm(v);
+  const hit = all.filter(p => norm([p.fiche?.nom, p.fiche?.ville, p.fiche?.adresse, p.fiche?.tel, p.fiche?.site, p.links?.nom, p.links?.site, p.links?.facebook, p.links?.instagram].join(' ')).includes(k)).sort((a, b) => b.upd - a.upd).slice(0, 6);
+  box.innerHTML = hit.map(p => `<div data-id="${p.id}">📍 <b>${esc(p.fiche?.nom || p.links.nom || p.links.site || 'Sans nom')}</b><small>${esc(p.fiche?.ville || '')}</small></div>`).join('') + `<div data-new="1">＋ Nouvel établissement : <b>${esc(v)}</b></div>`;
+  box.className = 'on'; box.firstChild.classList.add('sel');
+  box.querySelectorAll('div').forEach(d => d.onclick = async () => {
+    if (d.dataset.id) cur = all.find(p => p.id === d.dataset.id);
+    else { cur = newProject(); if (/^https?:\/\//i.test(v)) { const key = /facebook\./i.test(v) ? 'facebook' : /instagram\./i.test(v) ? 'instagram' : 'site'; cur.links[key] = v; } else cur.links.nom = v; await dbPut(cur); }
+    $('#q').value = ''; box.className = ''; renderList(); render(); window.scrollTo(0, 0);
+  });
+}
+$('#q').oninput = runSearch;
+$('#q').onkeydown = e => { const b = $('#qr'); if (e.key === 'Enter') { const s = b.querySelector('.sel') || b.firstChild; s && s.click(); } if (e.key === 'Escape') { b.className = ''; } if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { const l = [...b.children], i = l.findIndex(x => x.classList.contains('sel')), n = (i + (e.key === 'ArrowDown' ? 1 : -1) + l.length) % l.length; l.forEach(x => x.classList.remove('sel')); l[n] && l[n].classList.add('sel'); e.preventDefault(); } };
+document.addEventListener('click', e => { if (!e.target.closest('#sw')) $('#qr').className = ''; });
