@@ -142,7 +142,7 @@ async function suggest(b) {
   return { resultats: out.slice(0, 8) };
 }
 async function suggestWeb(b) {
-  const j = await claude({ model: MODEL(), max_tokens: 3000, tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }], messages: [{ role: 'user', content: `Trouve jusqu'à 5 établissements (restaurant, bar, hébergement, commerce) qui correspondent à : « ${String(b.q || '').slice(0, 200)} ». Si c'est une adresse, liste les établissements installés à cette adresse. N'invente rien. Réponds UNIQUEMENT en JSON : {"resultats":[{"nom":"","adresse":"adresse complète","ville":"","type":"restaurant|hebergement|commerce","site":"site officiel si connu"}]}` }] });
+  const j = await claude({ model: MODEL(), max_tokens: 3000, tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }], messages: [{ role: 'user', content: `Trouve jusqu'à 5 établissements (restaurant, bar, hébergement, commerce, agence, service, tout type d'entreprise) qui correspondent à : « ${String(b.q || '').slice(0, 200)} ». Si c'est une adresse, liste les établissements installés à cette adresse. Le nom peut contenir une faute de frappe : corrige-la (ex. « Immopshera » = « Immosphera »). N'invente rien. Réponds UNIQUEMENT en JSON : {"resultats":[{"nom":"","adresse":"adresse complète","ville":"","type":"restaurant|hebergement|commerce","site":"site officiel si connu"}]}` }] });
   try { const r = jsonOf(textOf(j)); return { resultats: (r.resultats || []).filter(x => x && x.nom).slice(0, 5) }; } catch (e) { return { resultats: [] }; }
 }
 

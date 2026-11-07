@@ -557,7 +557,7 @@ function openFinder(pre = '') {
     const v = q.value.trim(); if (v.length < 2) return;
     if (urlsIn(v).length) { close(); return fromLinks(v, city.nom); }
     show('<p class="hint">Recherche…</p>');
-    try { const r = await api('/api/fiche', { mode: web ? 'suggest_web' : 'suggest', q: withCity(v), ville: city.nom }); list(r.resultats || []); } catch (e) { show(`<div id="msg" class="on e">${esc(e.message)}</div>`); }
+    try { let r = await api('/api/fiche', { mode: web ? 'suggest_web' : 'suggest', q: withCity(v), ville: city.nom }); if (!web && !(r.resultats || []).length) { show('<p class="hint">Rien dans la carte, je cherche sur le web…</p>'); r = await api('/api/fiche', { mode: 'suggest_web', q: withCity(v), ville: city.nom }); } list(r.resultats || []); } catch (e) { show(`<div id="msg" class="on e">${esc(e.message)}</div>`); }
   };
   d.querySelectorAll('[data-cat]').forEach(b => b.onclick = async () => {
     show('<p class="hint">Je parcours ' + esc(b.textContent) + ' à ' + esc(city.nom) + '…</p>');
