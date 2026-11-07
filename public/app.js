@@ -483,8 +483,15 @@ async function downloadAll() {
 async function preview(k) {
   const files = await make(k); if (!files) return; $('#mt').textContent = 'Aperçu — ' + k; const mb = $('#mb'); $('#modal').classList.add('on');
   if (k === 'boutons') {
-    $('#mr').style.display = 'none'; mb.innerHTML = '<div class="bt"></div>'; const g = mb.firstChild;
-    Object.entries(files).filter(([p]) => /\/128\//.test(p) && /_normal\.png$/.test(p)).forEach(([p, v]) => { const i = new Image(); i.src = URL.createObjectURL(v); g.appendChild(i); }); return;
+    $('#mr').style.display = 'none'; mb.innerHTML = '<div class="bt" style="display:block"></div>'; const g = mb.firstChild, ST = [['normal', 'Normal'], ['survol', 'Survol'], ['presse', 'Pressé']], rows = {};
+    Object.keys(files).filter(p => /\/128\//.test(p)).forEach(p => { const m = p.match(/_([a-z]+)_(normal|survol|presse)\.png$/); if (m) (rows[m[1]] = rows[m[1]] || {})[m[2]] = files[p]; });
+    g.innerHTML = '<p style="margin:0 0 12px;font:600 13px system-ui;color:#334">Chaque bouton existe en 3 états : normal, survol, pressé (croix incluse).</p>';
+    Object.keys(rows).sort((a, b) => (b === 'fermer') - (a === 'fermer')).forEach(k => {
+      const r = document.createElement('div'); r.style.cssText = 'display:flex;align-items:center;gap:14px;background:#fff;border-radius:12px;padding:8px 14px;margin-bottom:8px';
+      r.innerHTML = `<b style="width:110px;font:600 13px system-ui">${k === 'fermer' ? '✕ Croix (fermer)' : k}</b>`;
+      ST.forEach(([st, lb]) => { const c = document.createElement('div'); c.style.cssText = 'text-align:center;font:11px system-ui;color:#667'; const im = new Image(); im.width = 72; im.src = URL.createObjectURL(rows[k][st]); c.append(im, document.createElement('br'), lb); r.appendChild(c); });
+      g.appendChild(r);
+    }); return;
   }
   $('#mr').style.display = '';
   let html = files['index.html'];
