@@ -313,7 +313,7 @@ function parseHtml(raw) {
 async function search() {
   const L = cur.links, b = $('#go'); b.disabled = true; msg('Recherche en cours (site, sources publiques, horaires, carte)…');
   try {
-    const r = await api('/api/fiche', { mode: 'search', site: L.site, facebook: L.facebook, instagram: L.instagram, autres: L.autres, nom: L.nom, type: L.type, adresse: L.adresse || '', tel: L.tel || '', pageText: cur.src?.text || '', pageImages: cur.src?.images || [] });
+    const r = await api('/api/fiche', { mode: 'search', site: L.site, facebook: L.facebook, instagram: L.instagram, autres: L.autres, nom: L.nom, type: L.type, adresse: L.adresse || '', ville: L.ville || '', tel: L.tel || '', pageText: cur.src?.text || '', pageImages: cur.src?.images || [] });
     const x = r.fiche || {}, f = cur.fiche || {};
     cur.fiche = Object.assign({ police: 'serif', logoForme: 'libre' }, f, {
       type: L.type || x.type || 'restaurant', nom: x.nom || L.nom || '', ville: x.ville || '', slogan: obj4(x.slogan), description: obj4(x.description), adresse: x.adresse || '', tel: x.tel || '', email: x.email || '',
@@ -385,6 +385,15 @@ $('#mc').onclick = () => { $('#modal').classList.remove('on'); $('#mb').innerHTM
 $('#new').onclick = () => openFinder();
 (async () => { const all = await dbAll(); all.sort((a, b) => b.upd - a.upd); cur = all[0] || null; renderList(); render(); })();
 
+/* ---------- création depuis des liens collés (Facebook, Instagram, site, Google Maps…) ---------- */
+const urlsIn = v => (String(v).match(/https?:\/\/[^\s,;]+/gi) || []);
+async function fromLinks(v, ville = '') {
+  const us = urlsIn(v), L = { site: '', facebook: '', instagram: '', autres: '', nom: '', type: '' }, rest = [];
+  for (const u of us) { if (/facebook\.com|fb\.com|fb\.me/i.test(u) && !L.facebook) L.facebook = u; else if (/instagram\.com/i.test(u) && !L.instagram) L.instagram = u; else if (!/facebook|instagram|google\.[a-z]+\/maps|goo\.gl|maps\.app|tripadvisor|airbnb|booking|thefork|lafourchette|tiktok|linktr|pagesjaunes/i.test(u) && !L.site) L.site = u; else rest.push(u); }
+  L.autres = rest.join(' '); L.ville = ville;
+  cur = newProject(); Object.assign(cur.links, L); await dbPut(cur); renderList(); render(); window.scrollTo(0, 0); search();
+}
+
 /* ---------- recherche d'un établissement ---------- */
 const norm = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 async function runSearch() {
@@ -396,7 +405,8 @@ async function runSearch() {
   box.querySelectorAll('div').forEach(d => d.onclick = async () => {
     if (d.dataset.id) cur = all.find(p => p.id === d.dataset.id);
     else if (!/^https?:\/\//i.test(v)) { $('#q').value = ''; box.className = ''; openFinder(v); return; }
-    else { cur = newProject(); if (/^https?:\/\//i.test(v)) { const key = /facebook\./i.test(v) ? 'facebook' : /instagram\./i.test(v) ? 'instagram' : 'site'; cur.links[key] = v; } else cur.links.nom = v; await dbPut(cur); }
+    else if (urlsIn(v).length) { $('#q').value = ''; box.className = ''; await fromLinks(v, getCity().nom); return; }
+    else { $('#q').value = ''; box.className = ''; openFinder(v); return; }
     $('#q').value = ''; box.className = ''; renderList(); render(); window.scrollTo(0, 0);
   });
 }
@@ -414,10 +424,10 @@ function openFinder(pre = '') {
   document.getElementById('fm')?.remove();
   let city = getCity();
   const d = document.createElement('div'); d.id = 'fm'; d.style.cssText = 'position:fixed;inset:0;background:rgba(10,18,30,.7);display:flex;align-items:flex-start;justify-content:center;z-index:60;padding:6vh 16px';
-  d.innerHTML = `<div class="card" style="width:min(680px,100%);max-height:88vh;overflow:auto"><h2>＋ Nouvel établissement</h2><p class="hint">Choisis la ville, puis tape un nom ou une adresse exacte, ou parcours une catégorie. Je cherche tout le reste et je crée la fiche complète.</p>
+  d.innerHTML = `<div class="card" style="width:min(680px,100%);max-height:88vh;overflow:auto"><h2>＋ Nouvel établissement</h2><p class="hint">Choisis la ville, puis tape un nom, une adresse exacte ou colle directement un lien (Facebook, Instagram, site, Google Maps…), ou parcours une catégorie. Je cherche tout le reste et je crée la fiche complète.</p>
    <label style="position:relative">Ville<input id="fc" autocomplete="off" value="${esc(city.nom)}" placeholder="Tape une ville…"><div id="fcl" style="position:absolute;top:62px;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.16);z-index:5;display:none"></div></label>
    <div class="row" id="rc" style="margin:-4px 0 12px"></div>
-   <div class="row"><input id="fq" style="flex:1;min-width:200px;margin:0" placeholder="Nom ou adresse exacte (ex. Burger et Cassolette, ou 12 rue de la Mairie)" value="${esc(pre)}"><button class="b" id="fs">Chercher</button></div>
+   <div class="row"><input id="fq" style="flex:1;min-width:200px;margin:0" placeholder="Nom, adresse exacte, ou lien Facebook / Instagram / site / Google Maps" value="${esc(pre)}"><button class="b" id="fs">Chercher</button></div>
    <div class="row" id="cats" style="margin-top:10px">${CATS.map(([k, n]) => `<button class="b o s" data-cat="${k}">${n}</button>`).join('')}</div>
    <div id="fr" style="margin-top:12px"></div>
    <div class="row" style="margin-top:14px"><button class="b o s" id="fw">🌐 Plus de propositions (recherche web)</button><button class="b o s" id="fl">Je préfère coller des liens</button><button class="b o s" id="fx" style="margin-left:auto">Fermer</button></div></div>`;
@@ -434,7 +444,9 @@ function openFinder(pre = '') {
   };
   const withCity = v => { const n = x => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); return n(v).includes(n(city.nom)) ? v : v + ', ' + city.nom; };
   const run = async web => {
-    const v = q.value.trim(); if (v.length < 2) return; show('<p class="hint">Recherche…</p>');
+    const v = q.value.trim(); if (v.length < 2) return;
+    if (urlsIn(v).length) { close(); return fromLinks(v, city.nom); }
+    show('<p class="hint">Recherche…</p>');
     try { const r = await api('/api/fiche', { mode: web ? 'suggest_web' : 'suggest', q: withCity(v), ville: city.nom }); list(r.resultats || []); } catch (e) { show(`<div id="msg" class="on e">${esc(e.message)}</div>`); }
   };
   d.querySelectorAll('[data-cat]').forEach(b => b.onclick = async () => {

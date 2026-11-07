@@ -80,7 +80,7 @@ async function search(b) {
   const uniq = a => [...new Set(a)];
   photos = uniq(photos).slice(0, 40); logos = uniq(logos).slice(0, 5);
   const prompt = `Tu prépares la fiche d'un établissement pour une visite virtuelle (NovaTour, Narbonne).
-Liens fournis : ${links.join(' , ') || '(aucun)'}${b.nom ? '\nNom indiqué : ' + b.nom : ''}${b.adresse ? '\nAdresse de l\'établissement visé : ' + b.adresse : ''}${b.tel ? '\nTéléphone connu : ' + b.tel : ''}${b.type ? '\nType imposé : ' + b.type : ''}
+Liens fournis : ${links.join(' , ') || '(aucun)'}${b.nom ? '\nNom indiqué : ' + b.nom : ''}${b.ville ? '\nVille : ' + b.ville : ''}${b.adresse ? '\nAdresse de l\'établissement visé : ' + b.adresse : ''}${b.tel ? '\nTéléphone connu : ' + b.tel : ''}${b.type ? '\nType imposé : ' + b.type : ''}
 ${text ? 'Texte déjà extrait du site officiel :\n' + text.slice(0, 15000) : "Aucun texte de site : utilise la recherche web (site officiel, Tripadvisor, office de tourisme, presse locale)."}
 
 Consignes :
