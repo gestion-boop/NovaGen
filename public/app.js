@@ -55,17 +55,24 @@ async function dominant(blob) {
   let c2 = rh([top.r / top.n, top.g / top.n, top.b / top.n]); if (lum(c2) > .8) c2 = mix(c2, '#000000', .3);
   return { c2, c1: mix(c2, '#000000', .72), c3: mix(c2, '#ffffff', .5) };
 }
+async function logoIsLight(blob) {
+  const bm = await createImageBitmap(blob), c = document.createElement('canvas'); c.width = c.height = 48; const x = c.getContext('2d'); x.drawImage(bm, 0, 0, 48, 48);
+  const d = x.getImageData(0, 0, 48, 48).data; let sum = 0, n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40) { sum += (.2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2]) / 255; n++; }
+  return n ? sum / n > .72 : false;
+}
+const logoBg = p => p.logoLight ? (p.fiche?.c1 || '#26211F') : '#fff';
 async function addPhotos(files) {
   let n = 0; for (const f of files) { try { const r = await toJpeg(f); if (Math.max(r.w, r.h) < 500) continue; cur.photos.push({ id: 'i' + Date.now() + n++, blob: r.blob }); } catch (e) { } }
   save(); renderPhotos();
 }
-async function setLogo(blob) { cur.logo = await toPng(blob); if (!cur.fiche?._colorsSet) { const d = await dominant(cur.logo); if (d && cur.fiche) Object.assign(cur.fiche, d); } save(); render(); }
+async function setLogo(blob) { cur.logo = await toPng(blob); cur.logoLight = await logoIsLight(cur.logo); if (!cur.fiche?._colorsSet) { const d = await dominant(cur.logo); if (d && cur.fiche) Object.assign(cur.fiche, d); } save(); render(); }
 
 /* ---------- rendu ---------- */
 function renderList() {
   dbAll().then(all => {
     all.sort((a, b) => b.upd - a.upd);
-    $('#list').innerHTML = all.map(p => `<div class="pj ${cur && cur.id === p.id ? 'on' : ''}" data-id="${p.id}">${p.logo ? `<img src="${URL.createObjectURL(p.logo)}">` : '<img>'}<div>${esc(p.fiche?.nom || p.links.nom || p.links.site || 'Nouveau')}<small>${esc(p.fiche?.ville || '')}</small></div><button class="x" data-del="${p.id}" title="Supprimer">✕</button></div>`).join('') || '<div class="hint" style="padding:6px">Aucun pour le moment.</div>';
+    all.filter(p => p.logo && p.logoLight === undefined).forEach(async p => { p.logoLight = await logoIsLight(p.logo); await dbPut(p); if (cur && cur.id === p.id) cur.logoLight = p.logoLight; renderList(); });
+    $('#list').innerHTML = all.map(p => `<div class="pj ${cur && cur.id === p.id ? 'on' : ''}" data-id="${p.id}">${p.logo ? `<img src="${URL.createObjectURL(p.logo)}" style="background:${logoBg(p)}">` : '<img>'}<div>${esc(p.fiche?.nom || p.links.nom || p.links.site || 'Nouveau')}<small>${esc(p.fiche?.ville || '')}</small></div><button class="x" data-del="${p.id}" title="Supprimer">✕</button></div>`).join('') || '<div class="hint" style="padding:6px">Aucun pour le moment.</div>';
     document.querySelectorAll('.pj').forEach(e => e.onclick = async ev => {
       if (ev.target.dataset.del) { if (confirm('Supprimer cet établissement ?')) { await dbDel(ev.target.dataset.del); if (cur && cur.id === ev.target.dataset.del) cur = null; renderList(); render(); } return; }
       cur = all.find(p => p.id === e.dataset.id); render(); renderList();
@@ -81,7 +88,7 @@ function render() {
    <div class="g2"><label>Site internet<input data-l="site" value="${esc(L.site)}" placeholder="https://…"></label><label>Facebook<input data-l="facebook" value="${esc(L.facebook)}" placeholder="https://facebook.com/…"></label></div>
    <div class="g2"><label>Instagram<input data-l="instagram" value="${esc(L.instagram)}" placeholder="https://instagram.com/…"></label><label>Autres liens (Tripadvisor, Airbnb, Google Maps…)<input data-l="autres" value="${esc(L.autres)}" placeholder="séparés par un espace"></label></div>
    <div class="g2"><label>Nom (facultatif)<input data-l="nom" value="${esc(L.nom)}"></label><label>Type<select data-l="type"><option value="">Détecter automatiquement</option>${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement (Airbnb, gîte, hôtel, camping)'], ['commerce', 'Commerce / autre']].map(([v, n]) => `<option value="${v}" ${L.type === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
-   <div class="logo" style="margin-bottom:14px">${cur.logo ? `<img id="lg" src="${URL.createObjectURL(cur.logo)}">` : ''}<div class="drop" id="lgd" style="flex:1">${cur.logo ? 'Remplacer le logo' : 'Déposer le logo (facultatif : sinon cherché sur le site)'}<input type="file" id="lgf" accept="image/*" hidden></div></div>
+   <div class="logo" style="margin-bottom:14px">${cur.logo ? `<img id="lg" src="${URL.createObjectURL(cur.logo)}" style="background:${logoBg(cur)}">` : ''}<div class="drop" id="lgd" style="flex:1">${cur.logo ? 'Remplacer le logo' : 'Déposer le logo (facultatif : sinon cherché sur le site)'}<input type="file" id="lgf" accept="image/*" hidden></div></div>
    <div class="row"><button class="b" id="go">🔎 Chercher les infos</button><span class="hint" style="margin:0">Compte 30 à 60 s.</span></div><div id="msg"></div></div>
   ${f ? ficheHtml(f) : ''}`;
   bind(); if (f) renderPhotos();
