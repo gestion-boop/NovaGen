@@ -86,6 +86,11 @@ function parseCarte(txt) {
   });
   return cats.filter(c => c.items.length);
 }
+function navQuery(f) { return f.adresse ? (f.adresse.toLowerCase().includes(String(f.ville || '').toLowerCase()) ? f.adresse : f.adresse + ' ' + (f.ville || '')) : (f.nom + ' ' + (f.ville || '')); }
+function navBtns(f) {
+  const q = encodeURIComponent(navQuery(f)), b = (href, bg, ic, nm) => `<a class="nv" href="${href}" target="_blank" rel="noopener" style="background:${bg}"><span>${ic}</span>${nm}</a>`;
+  return `<div class="navs">${b(mapsUrl(f), '#1a73e8', '📍', 'Google Maps')}${b('https://waze.com/ul?q=' + q + '&navigate=yes', '#05a6e8', '🚗', 'Waze')}${b('https://maps.apple.com/?daddr=' + q + '&dirflg=d', '#2c2c2e', '🧭', 'Plans')}</div>`;
+}
 function mapsUrl(f) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(f.adresse || (f.nom + ' ' + f.ville)); }
 function messengerUrl(f) {
   const m = String(f.facebook || '').match(/facebook\.com\/(?:profile\.php\?id=)?([^/?&#]+)/i);
@@ -213,7 +218,7 @@ function pageInfos(f) {
   }).join('')}</table></div>` : '';
   const q = f.adresse || (f.ville ? f.nom + ' ' + f.ville : f.nom);
   const map = `<iframe title="map" loading="lazy" style="width:100%;height:260px;border:0;border-radius:12px;margin-top:12px" src="https://maps.google.com/maps?q=${encodeURIComponent(heb && !f.adresse ? f.ville : q)}&z=${heb && !f.adresse ? 12 : 16}&output=embed"></iframe>`;
-  const adr = `<div class="card"><h2 class="h">${t(T.adresse)}</h2><p class="mu"><b style="color:var(--ink)">${esc(f.adresse || f.ville)}</b>${heb && !f.adresse ? '<br>' + t(T.adr_apres) : ''}</p>${map}</div>`;
+  const adr = `<div class="card"><h2 class="h">${t(T.adresse)}</h2><p class="mu"><b style="color:var(--ink)">${esc(f.adresse || f.ville)}</b>${heb && !f.adresse ? '<br>' + t(T.adr_apres) : ''}</p>${navBtns(f)}${map}</div>`;
   const cont = (f.tel || f.email) ? `<div class="card"><h2 class="h">${t(T.contact)}</h2><p class="mu">${f.tel ? `📞 <a href="${telHref(f.tel)}" style="color:inherit;font-weight:700">${esc(f.tel)}</a><br>` : ''}${f.email ? `✉️ <a href="mailto:${esc(f.email)}" style="color:inherit;font-weight:700">${esc(f.email)}</a>` : ''}</p></div>` : '';
   const sv = (f.services || []).length ? `<div class="card"><h2 class="h">${t(T.services)}</h2><div class="chips">${f.services.map(s => t(s)).join('')}</div></div>` : '';
   const soc = [f.facebook && ['Facebook', f.facebook], f.instagram && ['Instagram', f.instagram]].filter(Boolean);
@@ -231,6 +236,7 @@ function pageInfos(f) {
 .hero .btn{box-shadow:0 8px 22px rgba(0,0,0,.28)}.hero .btn.o{background:rgba(255,255,255,.14);color:#fff;border:1.5px solid rgba(255,255,255,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .wrap.ov{position:relative;margin-top:-34px;padding-top:0}.ov .card{animation:none;box-shadow:0 10px 30px rgba(20,20,30,.1)}.ab{border-top:4px solid var(--c2)}.ab p{font-size:15px;line-height:1.75}
 .card h2.h{display:flex;align-items:center;gap:12px}.card h2.h::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.navs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.nv{flex:1 1 120px;display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;text-decoration:none;font:700 13.5px Montserrat,sans-serif;padding:11px 14px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.18);transition:.15s}.nv:hover{transform:translateY(-2px);filter:brightness(1.08)}.nv span{font-size:16px}
 .hl,.hp{display:none}.hl{width:96px;height:96px;border-radius:50%;object-fit:contain;padding:8px;background:${f._logoLight ? c1 : '#fff'};border:3px solid ${hl};box-shadow:0 12px 30px rgba(0,0,0,.4);margin-bottom:16px}
 body.s2 .hero{text-align:center}body.s2 .hc{display:flex;flex-direction:column;align-items:center}body.s2 .hl{display:block;width:118px;height:118px}body.s2 .hero .row{justify-content:center}body.s2 .hero .sd{margin-left:auto;margin-right:auto}body.s2 .wrap.ov{margin-top:-24px}
 body.s3 .hero{min-height:clamp(280px,44vh,420px);background:linear-gradient(115deg,${c1} 0%,${mix(c1, f.c2, .4)} 100%)}body.s3 .hero::before{background:${motif(f, '#ffffff', .09)}}
