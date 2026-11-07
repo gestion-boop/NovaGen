@@ -1,7 +1,7 @@
 /* NovaGen — interface */
 const $ = s => document.querySelector(s);
 const DAYN = DAYS.fr;
-let cur = null, urls = [], saveT = 0;
+let cur = null, urls = [], saveT = 0, cityF = '';
 
 /* ---------- stockage (IndexedDB) ---------- */
 const idb = new Promise((ok, ko) => { const r = indexedDB.open('novagen', 1); r.onupgradeneeded = () => r.result.createObjectStore('p', { keyPath: 'id' }); r.onsuccess = () => ok(r.result); r.onerror = ko; });
@@ -72,7 +72,10 @@ function renderList() {
   dbAll().then(all => {
     all.sort((a, b) => b.upd - a.upd);
     all.filter(p => p.logo && p.logoLight === undefined).forEach(async p => { p.logoLight = await logoIsLight(p.logo); await dbPut(p); if (cur && cur.id === p.id) cur.logoLight = p.logoLight; renderList(); });
-    $('#list').innerHTML = all.map(p => `<div class="pj ${cur && cur.id === p.id ? 'on' : ''}" data-id="${p.id}">${p.logo ? `<img src="${URL.createObjectURL(p.logo)}" style="background:${logoBg(p)}">` : '<img>'}<div>${esc(p.fiche?.nom || p.links.nom || p.links.site || 'Nouveau')}<small>${esc(p.fiche?.ville || '')}</small></div><button class="x" data-del="${p.id}" title="Supprimer">✕</button></div>`).join('') || '<div class="hint" style="padding:6px">Aucun pour le moment.</div>';
+    const vs = [...new Set(all.map(p => p.fiche?.ville || p.links?.ville).filter(Boolean))].sort(); if (cityF && !vs.includes(cityF)) cityF = '';
+    const shown = cityF ? all.filter(p => (p.fiche?.ville || p.links?.ville) === cityF) : all;
+    $('#list').innerHTML = (vs.length > 1 ? `<select id="cf" style="margin:0 0 8px"><option value="">Toutes les villes (${all.length})</option>${vs.map(v => `<option ${v === cityF ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : '') + shown.map(p => `<div class="pj ${cur && cur.id === p.id ? 'on' : ''}" data-id="${p.id}">${p.logo ? `<img src="${URL.createObjectURL(p.logo)}" style="background:${logoBg(p)}">` : '<img>'}<div>${esc(p.fiche?.nom || p.links.nom || p.links.site || 'Nouveau')}<small>${esc(p.fiche?.ville || '')}</small></div><button class="x" data-del="${p.id}" title="Supprimer">✕</button></div>`).join('') || '<div class="hint" style="padding:6px">Aucun pour le moment.</div>';
+    const cf = $('#cf'); if (cf) cf.onchange = () => { cityF = cf.value; renderList(); };
     document.querySelectorAll('.pj').forEach(e => e.onclick = async ev => {
       if (ev.target.dataset.del) { if (confirm('Supprimer cet établissement ?')) { await dbDel(ev.target.dataset.del); if (cur && cur.id === ev.target.dataset.del) cur = null; renderList(); render(); } return; }
       cur = all.find(p => p.id === e.dataset.id); render(); renderList();
@@ -281,27 +284,46 @@ $('#q').oninput = runSearch;
 $('#q').onkeydown = e => { const b = $('#qr'); if (e.key === 'Enter') { const s = b.querySelector('.sel') || b.firstChild; s && s.click(); } if (e.key === 'Escape') { b.className = ''; } if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { const l = [...b.children], i = l.findIndex(x => x.classList.contains('sel')), n = (i + (e.key === 'ArrowDown' ? 1 : -1) + l.length) % l.length; l.forEach(x => x.classList.remove('sel')); l[n] && l[n].classList.add('sel'); e.preventDefault(); } };
 document.addEventListener('click', e => { if (!e.target.closest('#sw')) $('#qr').className = ''; });
 
-/* ---------- nouvel établissement : trouver par nom / adresse ---------- */
+/* ---------- nouvel établissement : trouver par ville, nom, adresse ou catégorie ---------- */
+const DEF_CITY = { nom: 'Narbonne', insee: '11262', cp: '11100' };
+const getCity = () => { try { return JSON.parse(localStorage.getItem('ng_city')) || DEF_CITY; } catch (e) { return DEF_CITY; } };
+const getCities = () => { try { return JSON.parse(localStorage.getItem('ng_cities')) || [DEF_CITY]; } catch (e) { return [DEF_CITY]; } };
+function setCity(c) { try { localStorage.setItem('ng_city', JSON.stringify(c)); const l = [c, ...getCities().filter(x => x.insee !== c.insee)].slice(0, 8); localStorage.setItem('ng_cities', JSON.stringify(l)); } catch (e) { } }
+const CATS = [['restaurant', '🍽 Restaurants'], ['bar', '☕ Bars & cafés'], ['hebergement', '🛏 Hébergements'], ['camping', '⛺ Campings'], ['commerce', '🛍 Commerces']];
 function openFinder(pre = '') {
   document.getElementById('fm')?.remove();
-  const d = document.createElement('div'); d.id = 'fm'; d.style.cssText = 'position:fixed;inset:0;background:rgba(10,18,30,.7);display:flex;align-items:flex-start;justify-content:center;z-index:60;padding:8vh 16px';
-  d.innerHTML = `<div class="card" style="width:min(640px,100%);max-height:84vh;overflow:auto"><h2>＋ Nouvel établissement</h2><p class="hint">Tape le nom et la ville, ou l'adresse exacte. Choisis le bon résultat : je cherche tout le reste et je crée la fiche complète.</p>
-   <div class="row"><input id="fq" style="flex:1;min-width:200px;margin:0" placeholder="ex. Burger et Cassolette Narbonne  ou  12 rue de la Mairie, 11100 Narbonne" value="${esc(pre)}"><button class="b" id="fs">Chercher</button></div>
+  let city = getCity();
+  const d = document.createElement('div'); d.id = 'fm'; d.style.cssText = 'position:fixed;inset:0;background:rgba(10,18,30,.7);display:flex;align-items:flex-start;justify-content:center;z-index:60;padding:6vh 16px';
+  d.innerHTML = `<div class="card" style="width:min(680px,100%);max-height:88vh;overflow:auto"><h2>＋ Nouvel établissement</h2><p class="hint">Choisis la ville, puis tape un nom ou une adresse exacte, ou parcours une catégorie. Je cherche tout le reste et je crée la fiche complète.</p>
+   <label style="position:relative">Ville<input id="fc" autocomplete="off" value="${esc(city.nom)}" placeholder="Tape une ville…"><div id="fcl" style="position:absolute;top:62px;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.16);z-index:5;display:none"></div></label>
+   <div class="row" id="rc" style="margin:-4px 0 12px"></div>
+   <div class="row"><input id="fq" style="flex:1;min-width:200px;margin:0" placeholder="Nom ou adresse exacte (ex. Burger et Cassolette, ou 12 rue de la Mairie)" value="${esc(pre)}"><button class="b" id="fs">Chercher</button></div>
+   <div class="row" id="cats" style="margin-top:10px">${CATS.map(([k, n]) => `<button class="b o s" data-cat="${k}">${n}</button>`).join('')}</div>
    <div id="fr" style="margin-top:12px"></div>
    <div class="row" style="margin-top:14px"><button class="b o s" id="fw">🌐 Plus de propositions (recherche web)</button><button class="b o s" id="fl">Je préfère coller des liens</button><button class="b o s" id="fx" style="margin-left:auto">Fermer</button></div></div>`;
-  document.body.appendChild(d); const q = d.querySelector('#fq'); q.focus();
-  const close = () => d.remove(), show = (html) => d.querySelector('#fr').innerHTML = html;
-  const run = async web => {
-    const v = q.value.trim(); if (v.length < 3) return; show('<p class="hint">Recherche…</p>');
-    try {
-      const r = await api('/api/fiche', { mode: web ? 'suggest_web' : 'suggest', q: v }), list = r.resultats || [];
-      show(list.length ? list.map((c, i) => `<div class="pick" data-i="${i}" style="padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;margin-bottom:8px;cursor:pointer"><b>${esc(c.nom || '(adresse sans nom)')}</b>${c.type ? ` <small style="color:var(--b2)">· ${{ restaurant: 'restaurant / bar', hebergement: 'hébergement', commerce: 'commerce' }[c.type]}</small>` : ''}<br><small style="color:var(--mu)">${esc(c.adresse || '')}</small></div>`).join('') : '<p class="hint">Aucun résultat. Essaie « 🌐 Plus de propositions (recherche web) » ou précise la ville.</p>');
-      d.querySelectorAll('.pick').forEach(e => { e.onmouseenter = () => e.style.borderColor = 'var(--b2)'; e.onmouseleave = () => e.style.borderColor = ''; e.onclick = () => pick(list[+e.dataset.i]); });
-    } catch (e) { show(`<div id="msg" class="on e">${esc(e.message)}</div>`); }
+  document.body.appendChild(d); const q = d.querySelector('#fq'), fc = d.querySelector('#fc'), fcl = d.querySelector('#fcl'); (pre ? q : fc).focus();
+  const close = () => d.remove(), show = html => d.querySelector('#fr').innerHTML = html;
+  const chips = () => { d.querySelector('#rc').innerHTML = getCities().map(c => `<button class="b s ${c.insee === city.insee ? '' : 'o'}" data-i="${c.insee}">📍 ${esc(c.nom)}</button>`).join(''); d.querySelectorAll('#rc button').forEach(b => b.onclick = () => choose(getCities().find(c => c.insee === b.dataset.i))); };
+  const choose = c => { city = c; setCity(c); fc.value = c.nom; fcl.style.display = 'none'; chips(); show(''); };
+  chips();
+  let t = 0; fc.oninput = () => { clearTimeout(t); t = setTimeout(async () => { const v = fc.value.trim(); if (v.length < 2) { fcl.style.display = 'none'; return; } try { const r = await (await fetch('https://geo.api.gouv.fr/communes?fields=nom,code,codesPostaux,departement&boost=population&limit=6&nom=' + encodeURIComponent(v))).json(); fcl.innerHTML = r.map(c => `<div data-c='${esc(JSON.stringify({ nom: c.nom, insee: c.code, cp: (c.codesPostaux || [])[0] || '' }))}' style="padding:10px 14px;cursor:pointer;font-size:14px">📍 <b>${esc(c.nom)}</b> <small style="color:var(--mu)">${esc(c.departement?.nom || '')} ${esc((c.codesPostaux || [])[0] || '')}</small></div>`).join('') || '<div style="padding:10px 14px;color:var(--mu)">Aucune ville</div>'; fcl.style.display = 'block'; fcl.querySelectorAll('div[data-c]').forEach(e => { e.onmouseenter = () => e.style.background = '#e4f1f4'; e.onmouseleave = () => e.style.background = ''; e.onclick = () => choose(JSON.parse(e.dataset.c)); }); } catch (e) { } }, 250); };
+  const KT = { restaurant: 'restaurant / bar', hebergement: 'hébergement', commerce: 'commerce' };
+  const list = (arr, extra = '') => {
+    show(extra + (arr.length ? arr.map((c, i) => `<div class="pick" data-i="${i}" style="padding:11px 14px;border:1.5px solid var(--line);border-radius:12px;margin-bottom:8px;cursor:pointer"><b>${esc(c.nom || '(adresse sans nom)')}</b>${c.type ? ` <small style="color:var(--b2)">· ${KT[c.type]}</small>` : ''}${c.site ? ' <small>🌐</small>' : ''}<br><small style="color:var(--mu)">${esc(c.adresse || '')}</small></div>`).join('') : '<p class="hint">Aucun résultat. Essaie « 🌐 Plus de propositions », ou précise le nom.</p>'));
+    d.querySelectorAll('.pick').forEach(e => { e.onmouseenter = () => e.style.borderColor = 'var(--b2)'; e.onmouseleave = () => e.style.borderColor = ''; e.onclick = () => pick(arr[+e.dataset.i]); });
   };
+  const withCity = v => { const n = x => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); return n(v).includes(n(city.nom)) ? v : v + ', ' + city.nom; };
+  const run = async web => {
+    const v = q.value.trim(); if (v.length < 2) return; show('<p class="hint">Recherche…</p>');
+    try { const r = await api('/api/fiche', { mode: web ? 'suggest_web' : 'suggest', q: withCity(v), ville: city.nom }); list(r.resultats || []); } catch (e) { show(`<div id="msg" class="on e">${esc(e.message)}</div>`); }
+  };
+  d.querySelectorAll('[data-cat]').forEach(b => b.onclick = async () => {
+    show('<p class="hint">Je parcours ' + esc(b.textContent) + ' à ' + esc(city.nom) + '…</p>');
+    try { const r = await api('/api/fiche', { mode: 'browse', insee: city.insee, cat: b.dataset.cat, ville: city.nom }); list(r.resultats || [], `<p class="hint">${r.total} résultat(s) à ${esc(city.nom)} — ceux avec 🌐 ont un site officiel.</p>`); } catch (e) { show(`<div id="msg" class="on e">${esc(e.message)}</div>`); }
+  });
   async function pick(c) {
     let nom = c.nom; if (!nom) { nom = prompt('Nom de l\'établissement à cette adresse ?') || ''; if (!nom) return; }
-    close(); cur = newProject(); Object.assign(cur.links, { nom, adresse: c.adresse || '', tel: c.tel || '', site: c.site || '', facebook: c.facebook || '', type: c.type || '' }); await dbPut(cur); renderList(); render(); window.scrollTo(0, 0); search();
+    close(); cur = newProject(); Object.assign(cur.links, { nom, adresse: c.adresse || '', ville: c.ville || city.nom, tel: c.tel || '', site: c.site || '', facebook: c.facebook || '', type: c.type || '' }); await dbPut(cur); renderList(); render(); window.scrollTo(0, 0); search();
   }
   d.querySelector('#fs').onclick = () => run(false); d.querySelector('#fw').onclick = () => run(true); d.querySelector('#fx').onclick = close;
   d.querySelector('#fl').onclick = async () => { close(); cur = newProject(); await dbPut(cur); renderList(); render(); };

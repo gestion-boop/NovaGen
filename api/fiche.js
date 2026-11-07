@@ -124,6 +124,24 @@ async function suggestWeb(b) {
   try { const r = jsonOf(textOf(j)); return { resultats: (r.resultats || []).filter(x => x && x.nom).slice(0, 5) }; } catch (e) { return { resultats: [] }; }
 }
 
+// Parcourir les établissements d'une ville par catégorie (OpenStreetMap / Overpass)
+async function browse(b) {
+  const insee = String(b.insee || '').replace(/\D/g, ''); if (!insee) throw new Error('Choisis une ville.');
+  const cats = { restaurant: ['["amenity"~"^(restaurant|fast_food|food_court)$"]', 'restaurant'], bar: ['["amenity"~"^(cafe|bar|pub|ice_cream)$"]', 'restaurant'], hebergement: ['["tourism"~"^(hotel|guest_house|apartment|hostel|motel|chalet|resort)$"]', 'hebergement'], camping: ['["tourism"~"^(camp_site|caravan_site)$"]', 'hebergement'], commerce: ['["shop"]', 'commerce'] };
+  const c = cats[b.cat]; if (!c) throw new Error('Catégorie inconnue');
+  const q = `[out:json][timeout:25];area["ref:INSEE"="${insee}"]["boundary"="administrative"]->.a;nwr${c[0]}["name"](area.a);out center tags 200;`;
+  const r = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'NovaGen/1.0 (outil interne NovaTour)' }, body: 'data=' + encodeURIComponent(q) });
+  if (!r.ok) throw new Error('Service de cartographie occupé, réessaie dans un instant (' + r.status + ')');
+  const j = await r.json(), seen = new Set(), out = [];
+  for (const e of j.elements || []) {
+    const t = e.tags || {}, k = (t.name || '').toLowerCase(); if (!t.name || seen.has(k)) continue; seen.add(k);
+    const rue = [t['addr:housenumber'], t['addr:street']].filter(Boolean).join(' '), ville = t['addr:city'] || b.ville || '';
+    out.push({ nom: t.name, adresse: [rue, [t['addr:postcode'], ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), ville, type: c[1], site: t.website || t['contact:website'] || '', tel: t.phone || t['contact:phone'] || '', facebook: t['contact:facebook'] || '' });
+  }
+  out.sort((x, y) => (y.site ? 1 : 0) - (x.site ? 1 : 0) || x.nom.localeCompare(y.nom));
+  return { resultats: out.slice(0, 80), total: out.length };
+}
+
 const PATCH_KEYS = ['nom', 'ville', 'type', 'slogan', 'description', 'adresse', 'tel', 'email', 'site', 'facebook', 'instagram', 'booking', 'horaires', 'services', 'carteTxt', 'c1', 'c2', 'c3', 'police', 'logoForme'];
 async function assist(b) {
   const hist = (b.history || []).map(m => (m.r === 'u' ? 'Utilisateur : ' : 'Assistant : ') + String(m.t || '').slice(0, 400)).join('\n');
@@ -160,8 +178,8 @@ module.exports = async (req, res) => {
     if (process.env.APP_PASSWORD && req.headers['x-pass'] !== process.env.APP_PASSWORD) return res.status(401).json({ error: 'Mot de passe incorrect' });
     const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     if (b.mode === 'ping') return res.json({ ok: true, key: !!process.env.ANTHROPIC_API_KEY });
-    if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY manquante dans Vercel (Settings → Environment Variables).' });
     if (b.mode === 'suggest') return res.json(await suggest(b));
+    if (b.mode === 'browse') return res.json(await browse(b));
     if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY manquante dans Vercel (Settings → Environment Variables).' });
     if (b.mode === 'suggest_web') return res.json(await suggestWeb(b));
     if (b.mode === 'assist') return res.json(await assist(b));
