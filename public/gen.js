@@ -163,7 +163,7 @@ function header(f, ctx, sub, withStatus) {
   return `<div class="top">${f._logo ? `<img src="assets/img/${f._logo}" alt="${esc(f.nom)}">` : ''}<div><small>${esc(f.nom)}</small>${ctx.t(sub, 'b', 'h')}</div>${bar}${st}</div>`;
 }
 function shell(f, ctx, { title, css = '', body, js = '', sch = null }) {
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(title)}</title>
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(title)}</title> <meta name="description" content="${esc(f.descCourte?.fr || f.description?.fr || f.slogan?.fr || f.nom)}"><meta property="og:title" content="${esc(f.nom)}"><meta property="og:description" content="${esc(f.descCourte?.fr || f.description?.fr || '')}">
 <script>if(/[?&]visite\\b/.test(location.search))document.documentElement.classList.add('visite')</script>
 <style>${baseCss(f)}${css}</style></head><body>${body}${langJs(ctx.D, sch)}${js ? `<script>${js}</script>` : ''}</body></html>`;
 }
@@ -189,7 +189,7 @@ function pageInfos(f) {
   const sv = (f.services || []).length ? `<div class="card"><h2 class="h">${t(T.services)}</h2><div class="chips">${f.services.map(s => t(s)).join('')}</div></div>` : '';
   const soc = [f.facebook && ['Facebook', f.facebook], f.instagram && ['Instagram', f.instagram]].filter(Boolean);
   const rs = soc.length ? `<div class="card"><h2 class="h">${t(T.reseaux)}</h2><div class="row">${soc.map(([n, u]) => `<a class="btn o" href="${esc(u)}" target="_blank" rel="noopener">${n}</a>`).join('')}</div></div>` : '';
-  const hero = `<div class="card"><h2 class="h" style="font-size:26px">${esc(f.nom)}</h2>${f.slogan?.fr ? t(f.slogan, 'p', 'mu', ' style="margin-bottom:10px;font-weight:600;color:var(--c2)"') : ''}${f.description?.fr ? t(f.description, 'p', 'mu') : ''}<div class="row" style="margin-top:16px">${acts.join('')}</div></div>`;
+  const hero = `<div class="card"><h2 class="h" style="font-size:26px">${esc(f.nom)}</h2>${f.slogan?.fr ? t(f.slogan, 'p', 'mu', ' style="margin-bottom:10px;font-weight:600;color:var(--c2)"') : ''}${f.descCourte?.fr ? t(f.descCourte, 'p', 'mu', ' style="margin-bottom:8px;font-weight:600"') : ''}${f.description?.fr ? t(f.description, 'p', 'mu') : ''}<div class="row" style="margin-top:16px">${acts.join('')}</div></div>`;
   const body = header(f, ctx, T.infos, !!sch) + `<div class="wrap">${hero}${hr}${adr}${cont}${sv}${rs}</div>`;
   return { 'index.html': shell(f, ctx, { title: f.nom + ' — Infos', body, sch }) };
 }
@@ -243,7 +243,7 @@ function pageIntro(f, hasBg) {
   const c1 = mix(f.c1, '#000000', .35), hl = lum(f.c2) > .4 ? f.c2 : mix(f.c2, '#ffffff', .55);
   const logo = f._logo ? (f.logoForme === 'rond' ? `<img class="lg" src="assets/img/${f._logo}" alt="">` : `<div class="lgw"><img src="assets/img/${f._logo}" alt="${esc(f.nom)}"></div>`) : `<div class="lgw"><div class="fb">${esc(f.nom)}</div></div>`;
   const sub = f.slogan?.fr ? f.slogan : { fr: [f.type === 'hebergement' ? 'Hébergement' : f.type === 'commerce' ? 'Boutique' : 'Restaurant', f.ville].filter(Boolean).join(' · ') };
-  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(f.nom)}</title>
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(f.nom)}</title> <meta name="description" content="${esc(f.descCourte?.fr || f.description?.fr || f.slogan?.fr || f.nom)}"><meta property="og:title" content="${esc(f.nom)}"><meta property="og:description" content="${esc(f.descCourte?.fr || f.description?.fr || '')}">
 <script>if(/[?&]visite\\b/.test(location.search))document.documentElement.classList.add('visite')</script>
 <style>${fontCss(f)}*{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden;font-family:Montserrat,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;background:${c1}}

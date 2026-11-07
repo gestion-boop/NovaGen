@@ -44,7 +44,8 @@ const SCHEMA = `{
  "type": "restaurant | hebergement | commerce",
  "nom": "", "ville": "",
  "slogan": {"fr":"court, 3 à 6 mots, ex. Burgers · Cassolettes · Narbonne","es":"","de":"","en":""},
- "description": {"fr":"2-3 phrases, ton chaleureux, factuel","es":"","de":"","en":""},
+ "descCourte": {"fr":"description COURTE : 1 à 2 phrases, 140 caractères maximum, pour les vignettes et l'aperçu NovaTour","es":"","de":"","en":""},
+ "description": {"fr":"description LONGUE : 4 à 6 phrases (400 à 700 caractères), ton chaleureux et factuel, ambiance, spécialités, ce qui rend le lieu unique","es":"","de":"","en":""},
  "adresse": "adresse postale complète (vide pour un hébergement)", "tel": "", "email": "", "site": "", "facebook": "", "instagram": "", "reservation_url": "lien de réservation en ligne s'il existe (Airbnb, Booking, TheFork...)",
  "horaires": ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"] (7 chaînes, ex. "12h–14h · 19h–22h" ou "Fermé"; tableau vide pour un hébergement),
  "services": [{"fr":"Wi-Fi","es":"Wi-Fi","de":"WLAN","en":"Wi-Fi"}],
@@ -87,7 +88,7 @@ Consignes :
 - Utilise la recherche web pour compléter et recouper (horaires, téléphone, adresse, carte), surtout si le texte du site est pauvre. Facebook et Instagram sont souvent inaccessibles : si c'est le cas, passe par d'autres sources.
 - N'INVENTE RIEN. Une donnée introuvable reste vide. Toute donnée incertaine, contradictoire ou venant d'une seule source douteuse va dans "notes".
 - Détecte le type. Hébergement : pas d'adresse précise, pas d'horaires.
-- Traduis slogan, description et services en espagnol, allemand, anglais.
+- Traduis slogan, descCourte, description et services en espagnol, allemand, anglais.
 - Couleurs c1/c2/c3 : celles de la marque (logo, site${theme ? ', theme-color ' + theme : ''}) ; sinon un choix sobre cohérent avec le type d'établissement.
 Réponds UNIQUEMENT par un objet JSON valide, sans texte autour, selon ce modèle :
 ${SCHEMA}`;
@@ -112,7 +113,7 @@ ${SCHEMA}`;
   return { fiche: f, photos, logos, theme };
 }
 async function translate(b) {
-  const j = await claude({ model: MODEL(), max_tokens: 4000, messages: [{ role: 'user', content: 'Traduis du français vers l\'espagnol (es), l\'allemand (de) et l\'anglais (en), en gardant le ton commercial chaleureux et les noms propres. Réponds UNIQUEMENT en JSON : {"slogan":{"es":"","de":"","en":""},"description":{"es":"","de":"","en":""},"services":[{"es":"","de":"","en":""}]} (services dans le même ordre et même nombre que ci-dessous).\n\n' + JSON.stringify({ slogan: b.slogan, description: b.description, services: b.services }) }] });
+  const j = await claude({ model: MODEL(), max_tokens: 4000, messages: [{ role: 'user', content: 'Traduis du français vers l\'espagnol (es), l\'allemand (de) et l\'anglais (en), en gardant le ton commercial chaleureux et les noms propres. Réponds UNIQUEMENT en JSON : {"slogan":{"es":"","de":"","en":""},"descCourte":{"es":"","de":"","en":""},"description":{"es":"","de":"","en":""},"services":[{"es":"","de":"","en":""}]} (services dans le même ordre et même nombre que ci-dessous).\n\n' + JSON.stringify({ slogan: b.slogan, descCourte: b.descCourte, description: b.description, services: b.services }) }] });
   return jsonOf(textOf(j));
 }
 
@@ -156,7 +157,7 @@ async function browse(b) {
   return { resultats: out.slice(0, 80), total: out.length };
 }
 
-const PATCH_KEYS = ['nom', 'ville', 'type', 'slogan', 'description', 'adresse', 'tel', 'email', 'site', 'facebook', 'instagram', 'booking', 'horaires', 'services', 'carteTxt', 'c1', 'c2', 'c3', 'police', 'logoForme'];
+const PATCH_KEYS = ['nom', 'ville', 'type', 'slogan', 'descCourte', 'description', 'adresse', 'tel', 'email', 'site', 'facebook', 'instagram', 'booking', 'horaires', 'services', 'carteTxt', 'c1', 'c2', 'c3', 'police', 'logoForme'];
 async function assist(b) {
   const hist = (b.history || []).map(m => (m.r === 'u' ? 'Utilisateur : ' : 'Assistant : ') + String(m.t || '').slice(0, 400)).join('\n');
   const prompt = `Tu es l'assistant intégré à NovaGen, l'outil de Sylvain (NovaVisio / NovaTour) qui génère les pages d'une visite virtuelle (intro, infos, galerie, carte, réservation, boutons) pour UN établissement.
@@ -169,7 +170,7 @@ Demande : ${b.instruction}
 Réponds UNIQUEMENT par un objet JSON valide :
 {"message":"réponse courte en français : ce que tu as fait, ou ta question, ou ce que tu n'as pas trouvé","patch":{ champs modifiés uniquement },"actions":[{"type":"remove_photo","n":3},{"type":"set_fond","n":2}],"notes":["facultatif : points qui restent incertains après ta correction, une phrase chacun"]}
 Règles :
-- patch : clés autorisées = ${PATCH_KEYS.join(', ')}. slogan et description = texte français simple ; services = tableau de textes français ; horaires = tableau de 7 textes (lundi→dimanche, ex. "12h–14h · 19h–22h" ou "Fermé") ; c1/c2/c3 = couleurs #hex ; type = restaurant | hebergement | commerce ; police = serif | sans ; logoForme = libre | rond.
+- patch : clés autorisées = ${PATCH_KEYS.join(', ')}. slogan, descCourte (courte, 140 car. max) et description (longue) = texte français simple ; services = tableau de textes français ; horaires = tableau de 7 textes (lundi→dimanche, ex. "12h–14h · 19h–22h" ou "Fermé") ; c1/c2/c3 = couleurs #hex ; type = restaurant | hebergement | commerce ; police = serif | sans ; logoForme = libre | rond.
 - Pour modifier la carte, renvoie la carte COMPLÈTE dans carteTxt, au format : lignes "# Catégorie" puis "Plat | prix | description" (en reprenant ce qui existe déjà et en appliquant le changement).
 - actions : seulement si la demande concerne les photos (remove_photo, set_fond). Sinon tableau vide.
 - N'invente aucune donnée (prix, horaires, téléphone). Si une info manque, demande-la dans "message" sans modifier. N'utilise la recherche web que si la demande l'exige (vérifier ou trouver une information).

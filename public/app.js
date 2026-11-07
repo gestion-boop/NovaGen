@@ -116,7 +116,8 @@ function ficheHtml(f) {
   return chatHtml() + `<div class="card"><h2><i>2</i> Fiche — vérifie et corrige</h2><p class="hint">Tout est modifiable. Les modifications sont enregistrées automatiquement.</p>${nt}
    <div class="g3">${v('nom', 'Nom')}${v('ville', 'Ville')}<label>Type<select data-f="type">${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement'], ['commerce', 'Commerce / autre']].map(([x, n]) => `<option value="${x}" ${f.type === x ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
    <label>Accroche courte (sous le nom)<input data-s="slogan" value="${esc(f.slogan?.fr || '')}"></label>
-   <label>Description<textarea data-s="description">${esc(f.description?.fr || '')}</textarea></label>
+   <label>Description courte <span class="hint" style="font-weight:400">(vignette / aperçu NovaTour — 140 caractères max)</span><input data-s="descCourte" maxlength="160" value="${esc(f.descCourte?.fr || '')}"></label>
+   <label>Description longue <span class="hint" style="font-weight:400">(page « Infos » de la visite)</span><textarea data-s="description" rows="5">${esc(f.description?.fr || '')}</textarea></label>
    <div class="g3">${v('adresse', 'Adresse')}${v('tel', 'Téléphone')}${v('email', 'E-mail')}</div>
    <div class="g3">${v('site', 'Site')}${v('facebook', 'Facebook')}${v('instagram', 'Instagram')}</div>
    ${v('booking', 'Lien de réservation en ligne (Airbnb, TheFork…)')}
@@ -236,12 +237,12 @@ function chatHtml() {
   return `<div class="card"><h2>💬 Assistant de la fiche</h2><p class="hint">Dis ce que tu veux changer : « ajoute un menu enfant à 9 € dans la carte », « passe le dimanche en fermé », « retire la photo 3 », « mets la photo 5 en fond d'intro », « vérifie le téléphone sur Google », « réécris la description plus chaleureuse ».</p>
    <div id="chat">${h}</div><div class="row"><input id="ci" style="flex:1;min-width:220px;margin:0" placeholder="Écris ta demande…"><button class="b" id="cs">Envoyer</button><button class="b o s" id="cu" ${undo ? '' : 'disabled'}>↶ Annuler</button></div></div>`;
 }
-const LAB = { nom: 'nom', ville: 'ville', type: 'type', slogan: 'accroche', description: 'description', adresse: 'adresse', tel: 'téléphone', email: 'e-mail', site: 'site', facebook: 'Facebook', instagram: 'Instagram', booking: 'lien de réservation', horaires: 'horaires', services: 'services', carteTxt: 'carte', c1: 'couleurs', c2: 'couleurs', c3: 'couleurs', police: 'police', logoForme: 'forme du logo' };
+const LAB = { nom: 'nom', ville: 'ville', type: 'type', slogan: 'accroche', descCourte: 'description courte', description: 'description longue', adresse: 'adresse', tel: 'téléphone', email: 'e-mail', site: 'site', facebook: 'Facebook', instagram: 'Instagram', booking: 'lien de réservation', horaires: 'horaires', services: 'services', carteTxt: 'carte', c1: 'couleurs', c2: 'couleurs', c3: 'couleurs', police: 'police', logoForme: 'forme du logo' };
 function applyAssist(r) {
   const f = cur.fiche, ch = new Set();
   undo = { fiche: JSON.parse(JSON.stringify(f)), photos: cur.photos.slice(), fond: cur.fond };
   for (const [k, v] of Object.entries(r.patch || {})) {
-    if (k === 'slogan' || k === 'description') f[k] = Object.assign(obj4(f[k]), { fr: String(v?.fr ?? v ?? '') });
+    if (k === 'slogan' || k === 'descCourte' || k === 'description') f[k] = Object.assign(obj4(f[k]), { fr: String(v?.fr ?? v ?? '') });
     else if (k === 'services') { const old = Object.fromEntries((f.services || []).map(x => [x.fr, x])); f.services = (Array.isArray(v) ? v : []).map(x => String(x?.fr ?? x).trim()).filter(Boolean).map(x => old[x] || { fr: x, es: x, de: x, en: x }); }
     else if (k === 'horaires') f.horaires = (Array.isArray(v) ? v : []).slice(0, 7).map(String);
     else f[k] = String(v ?? '');
@@ -255,7 +256,7 @@ function applyAssist(r) {
 }
 async function sendChat() {
   const i = $('#ci'), t = i.value.trim(); if (!t || !cur.fiche) return;
-  const f = cur.fiche, lite = Object.assign({}, f, { slogan: f.slogan?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr) }); Object.keys(lite).filter(k => k[0] === '_').forEach(k => delete lite[k]);
+  const f = cur.fiche, lite = Object.assign({}, f, { slogan: f.slogan?.fr || '', descCourte: f.descCourte?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr) }); Object.keys(lite).filter(k => k[0] === '_').forEach(k => delete lite[k]);
   cur.chat = cur.chat || []; const hist = cur.chat.slice(-6); cur.chat.push({ r: 'u', t }); i.value = ''; $('#chat').insertAdjacentHTML('beforeend', `<div class="cm u">${esc(t)}</div><div class="cm a" id="cw">…</div>`); $('#cs').disabled = true;
   try {
     const r = await api('/api/fiche', { mode: 'assist', instruction: t, fiche: lite, nbPhotos: cur.photos.length, fond: cur.fond, history: hist }), ch = applyAssist(r);
@@ -267,7 +268,7 @@ async function sendChat() {
 
 /* ---------- points à confirmer : OK / KO puis « Confirmer » ---------- */
 const nn = () => (cur.notes = (cur.notes || []).map(n => typeof n === 'string' ? { t: n, s: '', c: '' } : n));
-function liteFiche() { const f = cur.fiche, l = Object.assign({}, f, { slogan: f.slogan?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(x => x.fr) }); Object.keys(l).filter(k => k[0] === '_').forEach(k => delete l[k]); return l; }
+function liteFiche() { const f = cur.fiche, l = Object.assign({}, f, { slogan: f.slogan?.fr || '', descCourte: f.descCourte?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(x => x.fr) }); Object.keys(l).filter(k => k[0] === '_').forEach(k => delete l[k]); return l; }
 function paintNotes() {
   const el = $('#notes'); if (!el) return; nn(); if (!cur.notes.length) { el.style.display = 'none'; return; } el.style.display = '';
   const sel = cur.notes.filter(n => n.s).length;
@@ -316,7 +317,7 @@ async function search() {
     const r = await api('/api/fiche', { mode: 'search', site: L.site, facebook: L.facebook, instagram: L.instagram, autres: L.autres, nom: L.nom, type: L.type, adresse: L.adresse || '', ville: L.ville || '', tel: L.tel || '', pageText: cur.src?.text || '', pageImages: cur.src?.images || [] });
     const x = r.fiche || {}, f = cur.fiche || {};
     cur.fiche = Object.assign({ police: 'serif', logoForme: 'libre' }, f, {
-      type: L.type || x.type || 'restaurant', nom: x.nom || L.nom || '', ville: x.ville || '', slogan: obj4(x.slogan), description: obj4(x.description), adresse: x.adresse || '', tel: x.tel || '', email: x.email || '',
+      type: L.type || x.type || 'restaurant', nom: x.nom || L.nom || '', ville: x.ville || '', slogan: obj4(x.slogan), descCourte: obj4(x.descCourte), description: obj4(x.description), adresse: x.adresse || '', tel: x.tel || '', email: x.email || '',
       site: x.site || L.site || '', facebook: x.facebook || L.facebook || '', instagram: x.instagram || L.instagram || '', booking: x.reservation_url || '',
       horaires: Array.isArray(x.horaires) ? x.horaires.slice(0, 7) : [], services: (x.services || []).map(obj4),
       carteTxt: (x.carte || []).map(c => '# ' + c.cat + '\n' + (c.items || []).map(i => [i.nom, i.prix || '', i.desc || ''].join(' | ')).join('\n')).join('\n'),
@@ -336,12 +337,12 @@ async function search() {
 }
 
 /* ---------- génération ---------- */
-const hashTr = f => JSON.stringify([f.slogan?.fr, f.description?.fr, (f.services || []).map(s => s.fr)]);
+const hashTr = f => JSON.stringify([f.slogan?.fr, f.descCourte?.fr, f.description?.fr, (f.services || []).map(s => s.fr)]);
 async function ensureTr(f) {
-  if (hashTr(f) === f._trh) return; if (!f.slogan?.fr && !f.description?.fr && !(f.services || []).length) return;
+  if (hashTr(f) === f._trh) return; if (!f.slogan?.fr && !f.descCourte?.fr && !f.description?.fr && !(f.services || []).length) return;
   try {
-    const r = await api('/api/fiche', { mode: 'translate', slogan: f.slogan?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr) });
-    ['slogan', 'description'].forEach(k => { f[k] = Object.assign(obj4(f[k]), r[k] || {}, { fr: f[k]?.fr || '' }); });
+    const r = await api('/api/fiche', { mode: 'translate', slogan: f.slogan?.fr || '', descCourte: f.descCourte?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(s => s.fr) });
+    ['slogan', 'descCourte', 'description'].forEach(k => { f[k] = Object.assign(obj4(f[k]), r[k] || {}, { fr: f[k]?.fr || '' }); });
     f.services = (f.services || []).map((s, i) => Object.assign(obj4(s), (r.services || [])[i] || {}, { fr: s.fr })); f._trh = hashTr(f); save();
   } catch (e) { const m = $('#msg2'); if (m) m.innerHTML = '<p class="hint" style="margin-top:10px">Traduction automatique indisponible : les pages seront en français pour ES/DE/EN. (' + esc(e.message) + ')</p>'; }
 }
