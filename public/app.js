@@ -153,13 +153,13 @@ function render() {
    <div class="logo" style="margin-bottom:14px">${cur.logo ? `<img id="lg" src="${URL.createObjectURL(cur.logo)}" style="background:${logoBg(cur)}">` : ''}<div class="drop" id="lgd" style="flex:1">${cur.logo ? 'Remplacer le logo' : 'Déposer le logo (facultatif : sinon cherché sur le site)'}<input type="file" id="lgf" accept="image/*" hidden></div></div>
    <div class="row"><button class="b" id="go">🔎 Chercher les infos</button><span class="hint" style="margin:0">Compte 30 à 60 s.</span></div><div id="msg"></div></div>
   ${f ? ficheHtml(f) : ''}`;
-  bind(); if (f) { renderPhotos(); renderVideos(); }
+  bind(); if (f) { renderPhotos(); renderVideos(); renderBar(); }
   tabsUi(m, f);
 }
 /* ---------- navigation par onglets (présentation) ---------- */
 const TABS = [['infos', '📝', 'Infos'], ['style', '🎨', 'Style'], ['medias', '🖼', 'Photos & vidéos'], ['pages', '🚀', 'Pages']];
 function tabsUi(m, f) {
-  const key = c => { const t = (c.querySelector('h2') || {}).textContent || ''; return /Assistant/.test(t) ? 'dock' : /Liens|Fiche/.test(t) ? 'infos' : /Style/.test(t) ? 'style' : /Photos|Vidéos/.test(t) ? 'medias' : /Générer/.test(t) ? 'pages' : 'infos'; };
+  const key = c => { const t = (c.querySelector('h2') || {}).textContent || ''; return /Assistant/.test(t) ? 'dock' : /Liens|Fiche/.test(t) ? 'infos' : /Style/.test(t) ? 'style' : /Photos|Vidéos/.test(t) ? 'medias' : /Générer|Barre/.test(t) ? 'pages' : 'infos'; };
   [...m.children].filter(c => c.classList.contains('card')).forEach(c => { c.dataset.t = key(c); if (c.dataset.t === 'dock') { c.classList.add('dock', 'min'); const h = c.querySelector('h2'); h.onclick = () => c.classList.toggle('min'); } });
   if (!f) { m.dataset.tab = 'infos'; return; }
   if (!TABS.some(t => t[0] === cur._tab)) cur._tab = 'infos'; m.dataset.tab = cur._tab;
@@ -200,6 +200,7 @@ function ficheHtml(f) {
    <div class="g2" style="margin-top:10px"><label>Étiquette<input data-f="videoSur" value="${esc(f.videoSur || '')}" placeholder="Notre signature"></label><label>Titre de la page vidéo<input data-f="videoTitre" value="${esc(f.videoTitre || '')}" placeholder="Le Flambadou"></label></div>
    <label>Texte à côté de la vidéo<textarea data-f="videoTexte" rows="3" placeholder="Une cuisson ancestrale…">${esc(f.videoTexte || '')}</textarea></label>
    <label>Note Google (affichée dans Point Info « Vitrine »)<input data-f="avis" value="${esc(f.avis || '')}" placeholder="4,6/5 · plus de 1 000 avis Google"></label></div>
+  <div class="card"><h2>🎛 Barre du bas — simulation</h2><p class="hint">Place les boutons, choisis où chacun mène, puis clique dessus pour tester comme le client. L'ordre et les liens sont à reporter dans 3DVista.</p><div id="bar"></div></div>
   <div class="card"><h2><i>6</i> Générer</h2><p class="hint">Chaque ZIP se téléverse tel quel sur Vercel. Aperçu = exactement ce qui sera dans le ZIP.</p><div class="out" id="out"></div>
    <div class="row" style="margin-top:14px"><button class="b" id="all">⬇ Tout télécharger (ZIP séparés)</button></div><div id="msg2"></div></div>`;
 }
@@ -230,6 +231,57 @@ async function importCarte(list, btn) {
     delete f.carteTr; save(); render(); const m2 = $('#cm'); if (m2) m2.textContent = '✔ Carte importée (' + parseCarte(f.carteTxt).reduce((n, c) => n + c.items.length, 0) + ' plats).' + (r.notes ? ' À vérifier : ' + r.notes : '');
     preview('carte');
   } catch (e) { say('⚠ ' + e.message); } finally { btn.disabled = false; }
+}
+
+/* ---------- barre du bas : simulation (boutons, liens, test au clic) ---------- */
+const BAR_LAB = { menu: 'Carte', reserver: 'Réserver', photos: 'Photos', appeler: 'Appeler', infos: 'Infos', localisation: 'Plan', contact: 'Contact', plan: 'Plan', panoramas: 'Panoramas', video: 'Vidéo', son: 'Son', pleinecran: 'Plein écran', vr: 'VR', maison: 'Accueil', lit: 'Chambres', wifi: 'Wi-Fi', cafe: 'Café', vin: 'Vins', piscine: 'Piscine', tente: 'Camping', gateau: 'Pâtisserie', velo: 'Vélo', play: 'Lecture' };
+const BAR_PG = [['intro', 'Intro'], ['infos', 'Point Info'], ['galerie', 'Galerie'], ['carte', 'Carte'], ['reservation', 'Réservation'], ['video', 'Vidéo']];
+function barDefault(f) {
+  const hasC = parseCarte(f.carteTxt).length, t = f.type;
+  const L = t === 'hebergement' ? [['infos', 'page:infos'], ['photos', 'page:galerie'], ['reserver', 'page:reservation'], ['appeler', 'tel'], ['localisation', 'map']]
+    : t === 'commerce' ? [['infos', 'page:infos'], ['photos', 'page:galerie'], hasC ? ['menu', 'page:carte'] : ['reserver', 'page:reservation'], ['appeler', 'tel'], ['localisation', 'map']]
+    : [['menu', 'page:carte'], ['reserver', 'page:reservation'], ['photos', 'page:galerie'], ['appeler', 'tel'], ['infos', 'page:infos']];
+  return L.map(([k, t]) => ({ k, t, u: '' }));
+}
+function barLink(b) {
+  const f = cur.fiche;
+  if (b.t.startsWith('page:')) { const k = b.t.slice(5), n = projOf(k); return (cur.pub && cur.pub[k] && cur.pub[k].project === n && cur.pub[k].url) || (n ? 'https://' + n + '.vercel.app' : ''); }
+  if (b.t === 'tel') return f.tel ? 'tel:' + String(f.tel).replace(/[^\d+]/g, '') : '';
+  if (b.t === 'mail') return f.email ? 'mailto:' + f.email : '';
+  if (b.t === 'map') return f.adresse ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(f.nom + ' ' + f.adresse) : '';
+  return b.u || '';
+}
+function renderBar() {
+  const el = $('#bar'); if (!el) return; const f = cur.fiche; if (!cur.bar) cur.bar = barDefault(f);
+  const bar = cur.bar, svgUrl = (k, st) => 'data:image/svg+xml;utf8,' + encodeURIComponent(btnSvg(f, ICONS[k] ? k : 'infos', st, 120));
+  const bg = cur.photos.length ? URL.createObjectURL(cur.photos[Math.min(cur.fond || 0, cur.photos.length - 1)].blob) : '';
+  const tgt = b => b.t.startsWith('page:') ? '<optgroup label="Page NovaGen">' + BAR_PG.map(([k, n]) => `<option value="page:${k}" ${b.t === 'page:' + k ? 'selected' : ''}>${n}</option>`).join('') + '</optgroup>' : '';
+  el.innerHTML = `<div class="bs" id="bs" style="${bg ? `background-image:url(${bg})` : ''}"><div class="bsc">${bar.map((b, i) => `<button class="bb" data-bi="${i}" title="${esc(BAR_LAB[b.k] || b.k)}"><img class="n" src="${svgUrl(b.k, 'normal')}"><img class="h" src="${svgUrl(b.k, 'survol')}"><img class="p" src="${svgUrl(b.k, 'presse')}"></button>`).join('')}</div><div class="bso" id="bso"><div class="bsh"><b id="bst"></b><button class="bb x" id="bsx" title="Fermer"><img class="n" src="${svgUrl('fermer', 'normal')}"><img class="h" src="${svgUrl('fermer', 'survol')}"><img class="p" src="${svgUrl('fermer', 'presse')}"></button></div><iframe id="bsf"></iframe></div><div class="bsm" id="bsm"></div></div>
+  <div id="brows">${bar.map((b, i) => `<div class="br"><span class="bn">${i + 1}</span><img src="${svgUrl(b.k, 'normal')}" width="34"><select data-bk="${i}">${Object.keys(BAR_LAB).filter(k => ICONS[k]).map(k => `<option value="${k}" ${b.k === k ? 'selected' : ''}>${BAR_LAB[k]}</option>`).join('')}</select>
+   <select data-bt="${i}"><optgroup label="Page NovaGen">${BAR_PG.map(([k, n]) => `<option value="page:${k}" ${b.t === 'page:' + k ? 'selected' : ''}>${n}</option>`).join('')}</optgroup><optgroup label="Autre"><option value="tel" ${b.t === 'tel' ? 'selected' : ''}>Téléphone</option><option value="mail" ${b.t === 'mail' ? 'selected' : ''}>E-mail</option><option value="map" ${b.t === 'map' ? 'selected' : ''}>Plan (Google Maps)</option><option value="url" ${b.t === 'url' ? 'selected' : ''}>Lien libre…</option></optgroup></select>
+   ${b.t === 'url' ? `<input data-bu="${i}" value="${esc(b.u)}" placeholder="https://…" style="margin:0;flex:1;min-width:160px">` : `<span class="bl">${esc(barLink(b) || '— non renseigné —')}</span>`}
+   <button class="b o s" data-bup="${i}">↑</button><button class="b o s" data-bdn="${i}">↓</button><button class="b o s" data-brm="${i}">✕</button></div>`).join('')}</div>
+  <div class="row" style="margin-top:10px"><button class="b o s" id="bad">+ Ajouter un bouton</button><button class="b o s" id="bre">↺ Réinitialiser selon le type</button><button class="b o s" id="bcp">📋 Copier la liste des liens</button></div>`;
+  const save2 = (re = true) => { save(); if (re) renderBar(); };
+  const msg = t => { const m = $('#bsm'); m.textContent = t; m.classList.add('on'); clearTimeout(msg.t); msg.t = setTimeout(() => m.classList.remove('on'), 2600); };
+  el.querySelectorAll('[data-bi]').forEach(bt => bt.onclick = async () => {
+    const b = bar[+bt.dataset.bi], l = barLink(b);
+    if (b.t.startsWith('page:')) {
+      const k = b.t.slice(5); bt.disabled = true;
+      try { const files = await make(k); if (!files) { msg('Cette page n\'est pas disponible pour cette fiche.'); return; } let html = files['index.html']; for (const [pp, v] of Object.entries(files)) if (pp !== 'index.html') html = html.split(pp).join(URL.createObjectURL(v)); $('#bsf').srcdoc = html; $('#bst').textContent = BAR_LAB[b.k] || ''; $('#bso').classList.add('on'); }
+      catch (e) { msg('Erreur : ' + e.message); } finally { bt.disabled = false; }
+    } else if (!l) msg('Pas de lien renseigné pour ce bouton.'); else if (b.t === 'tel') msg('📞 Ouvre l\'appel : ' + l.slice(4)); else if (b.t === 'mail') msg('✉ Ouvre un e-mail : ' + l.slice(7)); else window.open(l, '_blank');
+  });
+  $('#bsx').onclick = () => { $('#bso').classList.remove('on'); $('#bsf').srcdoc = ''; };
+  el.querySelectorAll('[data-bk]').forEach(s => s.onchange = () => { bar[+s.dataset.bk].k = s.value; save2(); });
+  el.querySelectorAll('[data-bt]').forEach(s => s.onchange = () => { bar[+s.dataset.bt].t = s.value; save2(); });
+  el.querySelectorAll('[data-bu]').forEach(i => i.onchange = () => { bar[+i.dataset.bu].u = i.value.trim(); save2(false); });
+  const mv = (i, d) => { const j = i + d; if (j < 0 || j >= bar.length) return; [bar[i], bar[j]] = [bar[j], bar[i]]; save2(); };
+  el.querySelectorAll('[data-bup]').forEach(b => b.onclick = () => mv(+b.dataset.bup, -1)); el.querySelectorAll('[data-bdn]').forEach(b => b.onclick = () => mv(+b.dataset.bdn, 1));
+  el.querySelectorAll('[data-brm]').forEach(b => b.onclick = () => { bar.splice(+b.dataset.brm, 1); save2(); });
+  $('#bad').onclick = () => { bar.push({ k: 'infos', t: 'page:infos', u: '' }); save2(); };
+  $('#bre').onclick = () => { cur.bar = barDefault(f); save2(); };
+  $('#bcp').onclick = () => { const txt = bar.map((b, i) => `${i + 1}. ${BAR_LAB[b.k] || b.k} → ${barLink(b) || '(non renseigné)'}`).join('\n'); (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => msg('Liste copiée.'), () => prompt('Copie la liste :', txt)); };
 }
 /* ---------- vidéos ---------- */
 function renderVideos() {
