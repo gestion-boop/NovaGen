@@ -78,13 +78,23 @@ Consignes :
 Réponds UNIQUEMENT par un objet JSON valide, sans texte autour, selon ce modèle :
 ${SCHEMA}`;
   const messages = [{ role: 'user', content: prompt }];
-  let j;
+  let j, f = null, lastText = '';
+  const parse = t => { try { return jsonOf(t); } catch (e) { return null; } };
   for (let i = 0; i < 4; i++) {
-    j = await claude({ model: MODEL(), max_tokens: 8000, messages, tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }, { type: 'web_fetch_20250910', name: 'web_fetch', max_uses: 4 }] });
+    j = await claude({ model: MODEL(), max_tokens: 12000, messages, tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }, { type: 'web_fetch_20250910', name: 'web_fetch', max_uses: 4 }] });
+    lastText = textOf(j);
     if (j.stop_reason !== 'pause_turn') break;
     messages.push({ role: 'assistant', content: j.content });
   }
-  const f = jsonOf(textOf(j));
+  f = parse(lastText);
+  if (!f) {
+    // 2e passage sans outils : on force la réponse JSON à partir de ce qui a été trouvé
+    messages.push({ role: 'assistant', content: j.content.length ? j.content : [{ type: 'text', text: 'Recherche terminée.' }] });
+    messages.push({ role: 'user', content: 'Maintenant, réponds UNIQUEMENT par l\'objet JSON de la fiche (aucun texte avant ou après), selon le modèle demandé, avec ce que tu as trouvé. Donnée introuvable = chaîne vide.' });
+    const j2 = await claude({ model: MODEL(), max_tokens: 12000, messages });
+    f = parse(textOf(j2));
+    if (!f) throw new Error('Réponse non exploitable (' + (j2.stop_reason || '?') + ') : ' + textOf(j2).slice(0, 160));
+  }
   return { fiche: f, photos, logos, theme };
 }
 async function translate(b) {
