@@ -154,7 +154,26 @@ function render() {
    <div class="row"><button class="b" id="go">🔎 Chercher les infos</button><span class="hint" style="margin:0">Compte 30 à 60 s.</span></div><div id="msg"></div></div>
   ${f ? ficheHtml(f) : ''}`;
   bind(); if (f) { renderPhotos(); renderVideos(); }
+  tabsUi(m, f);
 }
+/* ---------- navigation par onglets (présentation) ---------- */
+const TABS = [['infos', '📝', 'Infos'], ['style', '🎨', 'Style'], ['medias', '🖼', 'Photos & vidéos'], ['pages', '🚀', 'Pages']];
+function tabsUi(m, f) {
+  const key = c => { const t = (c.querySelector('h2') || {}).textContent || ''; return /Assistant/.test(t) ? 'dock' : /Liens|Fiche/.test(t) ? 'infos' : /Style/.test(t) ? 'style' : /Photos|Vidéos/.test(t) ? 'medias' : /Générer/.test(t) ? 'pages' : 'infos'; };
+  [...m.children].filter(c => c.classList.contains('card')).forEach(c => { c.dataset.t = key(c); if (c.dataset.t === 'dock') { c.classList.add('dock', 'min'); const h = c.querySelector('h2'); h.onclick = () => c.classList.toggle('min'); } });
+  if (!f) { m.dataset.tab = 'infos'; return; }
+  if (!TABS.some(t => t[0] === cur._tab)) cur._tab = 'infos'; m.dataset.tab = cur._tab;
+  const nb = (cur.photos || []).length, nc = parseCarte(f.carteTxt).reduce((n, c) => n + c.items.length, 0), nv = (cur.videos || []).length;
+  const chip = (ok, t) => `<span class="chip ${ok ? 'ok' : ''}">${ok ? '✔' : '○'} ${t}</span>`;
+  const head = document.createElement('div'); head.className = 'ph0';
+  head.innerHTML = `<div class="ph0t">${cur.logo ? `<img src="${URL.createObjectURL(cur.logo)}" style="background:${logoBg(cur)}">` : ''}<div><h1>${esc(f.nom || 'Nouvel établissement')}</h1><small>${esc([f.ville, f.type === 'hebergement' ? 'Hébergement' : f.type === 'commerce' ? 'Commerce' : 'Restaurant / bar'].filter(Boolean).join(' · '))}</small></div></div>
+   <div class="chips0">${chip(!!f.nom, 'Fiche')}${chip(!!cur.logo, 'Logo')}${chip(nb > 0, nb + ' photo' + (nb > 1 ? 's' : ''))}${f.type !== 'hebergement' ? chip(nc > 0, nc ? nc + ' plats' : 'Carte') : ''}${chip(nv > 0, nv + ' vidéo' + (nv > 1 ? 's' : ''))}</div>
+   <nav class="tabs0">${TABS.map(([k, ic, n], i) => `<button data-tab="${k}" class="${k === cur._tab ? 'on' : ''}"><i>${i + 1}</i>${ic} ${n}</button>`).join('')}</nav>`;
+  m.prepend(head);
+  head.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { cur._tab = b.dataset.tab; m.dataset.tab = cur._tab; head.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b)); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  if (cur._tab === 'pages' || true) { const nxt = TABS[TABS.findIndex(t => t[0] === cur._tab) + 1]; if (nxt) { const last = [...m.querySelectorAll('.card')].filter(c => c.dataset.t === cur._tab).pop(); if (last) { const n = document.createElement('div'); n.className = 'nx'; n.innerHTML = `<button class="b" data-go="${nxt[0]}">Suivant : ${nxt[1]} ${nxt[2]} →</button>`; n.dataset.t = cur._tab; m.insertBefore(n, last.nextSibling); n.querySelector('button').onclick = () => head.querySelector(`[data-tab="${nxt[0]}"]`).click(); } } }
+}
+
 function ficheHtml(f) {
   const nt = '<div class="notes" id="notes"></div>';
   const v = (k, lab, ph = '') => `<label>${lab}<input data-f="${k}" value="${esc(f[k] || '')}" placeholder="${ph}"></label>`;
@@ -278,9 +297,10 @@ async function applyComment(k, btn) {
 function renderOut() {
   const o = $('#out'); if (!o) return; const f = cur.fiche, heb = f.type === 'hebergement', hasC = parseCarte(f.carteTxt).length;
   const items = [['intro', 'Intro', '5 s · iris · signature NovaVisio'], ['infos', 'Point Info', 'horaires, adresse, contact, services'], ['galerie', 'Galerie', cur.photos.length + ' photo(s) + lightbox', !cur.photos.length], ['carte', 'Carte', 'plats et prix', heb || !hasC], ['reservation', heb ? 'Réservation / demande' : 'Réservation', 'récap + appel / e-mail / Messenger', f.type === 'commerce'], ['video', 'Vidéo', (cur.videos || []).length + ' vidéo(s) · cadre téléphone, son, progression', !(cur.videos || []).length], ['boutons', 'Boutons glossy', '30 icônes × 3 états, 256 et 128 px']];
-  o.innerHTML = items.map(([k, n, d, off]) => `<div class="o" style="${off ? 'opacity:.45' : ''}"><b>${n} <span class="bd" id="bd-${k}"></span></b><small>${off ? 'Non disponible pour cette fiche' : d}</small>
-   ${PUB.includes(k) && !off ? `<label style="margin:0;font-size:11px">Projet Vercel à mettre à jour<input data-vp="${k}" list="vpl" value="${esc(projOf(k))}" style="margin-top:3px;padding:7px 9px;font-size:12.5px"></label><div class="vs" id="vs-${k}"></div><div class="lk" id="lk-${k}" style="font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"></div>` : ''}
-   <div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>Aperçu</button><button class="b o s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button>${PUB.includes(k) && !off ? `<button class="b s" data-pub="${k}">🚀 Déployer</button>` : ''}</div>${PG.includes(k) && !off ? `<div style="border-top:1px dashed var(--line);padding-top:8px"><small id="sty-${k}" style="display:block;margin-bottom:5px"></small><textarea data-pc="${k}" rows="2" placeholder="Un changement ? ex. fond plus sombre, titres plus gros, carte plus aérée…" style="margin:0;min-height:0;font-size:12.5px;padding:7px 9px"></textarea><div class="row" style="margin-top:6px"><button class="b s" data-pa="${k}">Appliquer</button><button class="b o s" data-rnd="${k}" title="Propose un autre design pour cette page">🎲 Autre proposition</button></div><div class="vs" id="pm-${k}"></div></div>` : ''}<div class="pl" id="pl-${k}"></div></div>`).join('');
+  o.innerHTML = items.map(([k, n, d, off]) => `<div class="o" style="${off ? 'opacity:.45' : ''}"><div class="oh"><div><b>${n} <span class="bd" id="bd-${k}"></span></b><small>${off ? 'Non disponible pour cette fiche' : d}</small></div>
+   <div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>👁 Aperçu</button><button class="b o s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button>${PUB.includes(k) && !off ? `<button class="b s" data-pub="${k}">🚀 Déployer</button>` : ''}</div></div>
+   ${PUB.includes(k) && !off ? `<div class="lk" id="lk-${k}" style="font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"></div>` : ''}
+   ${(PUB.includes(k) || PG.includes(k)) && !off ? `<details class="opt"><summary>⚙ Réglages de cette page</summary>${PUB.includes(k) ? `<label style="margin:8px 0 0;font-size:11px">Projet Vercel à mettre à jour<input data-vp="${k}" list="vpl" value="${esc(projOf(k))}" style="margin-top:3px;padding:7px 9px;font-size:12.5px"></label><div class="vs" id="vs-${k}"></div>` : ''}${PG.includes(k) ? `<div style="padding-top:8px"><small id="sty-${k}" style="display:block;margin-bottom:5px"></small><textarea data-pc="${k}" rows="2" placeholder="Un changement ? ex. fond plus sombre, titres plus gros, carte plus aérée…" style="margin:0;min-height:0;font-size:12.5px;padding:7px 9px"></textarea><div class="row" style="margin-top:6px"><button class="b s" data-pa="${k}">Appliquer</button><button class="b o s" data-rnd="${k}" title="Propose un autre design pour cette page">🎲 Autre proposition</button></div><div class="vs" id="pm-${k}"></div></div>` : ''}</details>` : ''}<div class="pl" id="pl-${k}"></div></div>`).join('');
   const stl = k => { const el = $('#sty-' + k); if (el) el.innerHTML = 'Style : <b>' + ((STYLES.find(x => x[0] === styleOfPg(Object.assign({}, f, { _fond: cur.photos.length > 0, _names: cur.photos.map(() => 0) }), k)) || [])[1] || '') + '</b>' + (f.pstyle && f.pstyle[k] ? ' <a href="#" data-auto="' + k + '">↺ auto</a>' : ''); }; PG.forEach(stl);
   o.querySelectorAll('[data-auto]').forEach(a => a.onclick = e => { e.preventDefault(); delete f.pstyle[a.dataset.auto]; if (f.pfond) delete f.pfond[a.dataset.auto]; save(); renderOut(); });
   o.querySelectorAll('[data-rnd]').forEach(b => b.onclick = () => randomize(b.dataset.rnd));

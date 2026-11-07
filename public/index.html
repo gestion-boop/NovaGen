@@ -45,6 +45,23 @@ button.b:hover{filter:brightness(1.08)}button.b:disabled{opacity:.5;cursor:wait}
 .ni{padding:9px 0;border-top:1px solid #f0d98a}.ni .nt{font-size:13px;line-height:1.5}.nb{display:flex;gap:6px;margin-top:6px}.nb button{border:1.5px solid #d9c27a;background:#fff;border-radius:8px;padding:4px 12px;font:700 12px inherit;font-family:inherit;cursor:pointer}.nb .ok.on{background:#1b9a4b;border-color:#1b9a4b;color:#fff}.nb .ko.on{background:#c23a2b;border-color:#c23a2b;color:#fff}.nc{margin-top:6px!important;padding:7px 10px!important;font-size:13px!important}
 .bd{font-size:11px;font-weight:700;border-radius:20px;padding:2px 8px;margin-left:4px}.bd.n{background:#eef1f5;color:var(--mu)}.bd.ok{background:#e7f6ec;color:#1b6b37}.bd.mod{background:#fff1d6;color:#8a5a00}.vs{font-size:11px;line-height:1.4;margin:-4px 0 0}.pl{font-size:12px;line-height:1.5}.pl a{color:var(--b1)}
 .empty{padding:50px 20px;text-align:center;color:var(--mu)}
+
+/* ---- refonte présentation : onglets, en-tête de fiche, assistant flottant, pages en lignes ---- */
+:root{--bg:#f4f7fa}body{background:linear-gradient(180deg,#eaf1f6 0,var(--bg) 220px)}
+header{padding:12px 24px;box-shadow:0 2px 14px rgba(18,92,104,.25)}
+.card{border-radius:20px;border-color:#e3eaf1;box-shadow:0 4px 18px rgba(30,60,90,.05);padding:22px 24px}.card h2 i{display:none}.card h2{font-size:17px}
+main[data-tab] .card[data-t]:not([data-t="dock"]),main[data-tab] .nx{display:none}main[data-tab="infos"][id] .card[data-t="infos"],main[data-tab="style"][id] .card[data-t="style"],main[data-tab="medias"][id] .card[data-t="medias"],main[data-tab="pages"][id] .card[data-t="pages"]{display:block}
+.ph0{background:#fff;border:1px solid #e3eaf1;border-radius:20px;padding:16px 20px 0;box-shadow:0 4px 18px rgba(30,60,90,.05);position:sticky;top:8px;z-index:15}
+.ph0t{display:flex;align-items:center;gap:14px}.ph0t img{width:56px;height:56px;border-radius:50%;object-fit:contain;padding:5px;box-shadow:0 2px 8px rgba(0,0,0,.18)}.ph0t h1{font-size:21px;line-height:1.15}.ph0t small{color:var(--mu);font-size:13px}
+.chips0{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 4px}.chip{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:#eef1f5;color:var(--mu)}.chip.ok{background:#e4f5ea;color:#1b6b37}
+.tabs0{display:flex;gap:4px;margin-top:10px;overflow-x:auto}.tabs0 button{flex:1;min-width:max-content;border:0;background:none;padding:13px 16px;font:700 14px inherit;font-family:inherit;color:var(--mu);cursor:pointer;border-bottom:3px solid transparent;display:flex;align-items:center;justify-content:center;gap:7px}
+.tabs0 button i{font-style:normal;background:#e3eaf1;color:var(--mu);border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px}.tabs0 button.on{color:var(--b3);border-color:var(--b2)}.tabs0 button.on i{background:var(--b2);color:#fff}.tabs0 button:hover{color:var(--b3)}
+.nx{display:flex;justify-content:flex-end}main[data-tab="infos"] .nx[data-t="infos"],main[data-tab="style"] .nx[data-t="style"],main[data-tab="medias"] .nx[data-t="medias"]{display:flex}.nx .b{padding:13px 22px;font-size:15px;border-radius:30px;box-shadow:0 8px 20px rgba(43,137,157,.35)}
+.dock{position:fixed;right:20px;bottom:20px;width:min(400px,calc(100vw - 40px));z-index:30;box-shadow:0 18px 50px rgba(18,40,70,.28);max-height:78vh;overflow:auto;padding:14px 18px}.dock h2{cursor:pointer;margin:0}.dock.min>*:not(h2){display:none}.dock.min{width:auto;border-radius:30px;padding:12px 20px;background:var(--b2);border:0}.dock.min h2{color:#fff;font-size:15px}
+.out{grid-template-columns:1fr;gap:10px}.o{padding:14px 18px;gap:8px;border-radius:16px}.oh{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.oh small{display:block;margin-top:2px}
+.opt{border-top:1px dashed var(--line);padding-top:8px}.opt summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--b1)}
+aside{border-radius:20px;box-shadow:0 4px 18px rgba(30,60,90,.05)}.pj{border-radius:14px}.pj.on{background:#e4f1f4;box-shadow:inset 3px 0 0 var(--b2)}
+button.b{border-radius:12px}
 @media(max-width:900px){.app{grid-template-columns:1fr}aside{position:static}.g3,.g4{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.g2,.g3,.g4{grid-template-columns:1fr}}
 </style></head><body>
