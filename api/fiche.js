@@ -165,7 +165,7 @@ ${hist ? 'Échanges récents :\n' + hist + '\n' : ''}
 Demande : ${b.instruction}
 
 Réponds UNIQUEMENT par un objet JSON valide :
-{"message":"réponse courte en français : ce que tu as fait, ou ta question, ou ce que tu n'as pas trouvé","patch":{ champs modifiés uniquement },"actions":[{"type":"remove_photo","n":3},{"type":"set_fond","n":2}]}
+{"message":"réponse courte en français : ce que tu as fait, ou ta question, ou ce que tu n'as pas trouvé","patch":{ champs modifiés uniquement },"actions":[{"type":"remove_photo","n":3},{"type":"set_fond","n":2}],"notes":["facultatif : points qui restent incertains après ta correction, une phrase chacun"]}
 Règles :
 - patch : clés autorisées = ${PATCH_KEYS.join(', ')}. slogan et description = texte français simple ; services = tableau de textes français ; horaires = tableau de 7 textes (lundi→dimanche, ex. "12h–14h · 19h–22h" ou "Fermé") ; c1/c2/c3 = couleurs #hex ; type = restaurant | hebergement | commerce ; police = serif | sans ; logoForme = libre | rond.
 - Pour modifier la carte, renvoie la carte COMPLÈTE dans carteTxt, au format : lignes "# Catégorie" puis "Plat | prix | description" (en reprenant ce qui existe déjà et en appliquant le changement).
@@ -182,7 +182,7 @@ Règles :
   const txt = textOf(j);
   let r; try { r = jsonOf(txt); } catch (e) { return { message: txt.trim().slice(0, 600) || 'Je n\'ai pas pu traiter la demande.', patch: {}, actions: [] }; }
   const patch = {}; for (const k of PATCH_KEYS) if (r.patch && k in r.patch) patch[k] = r.patch[k];
-  return { message: r.message || 'Fait.', patch, actions: Array.isArray(r.actions) ? r.actions.filter(a => a && /^(remove_photo|set_fond)$/.test(a.type)) : [] };
+  return { message: r.message || 'Fait.', notes: Array.isArray(r.notes) ? r.notes.filter(x => typeof x === 'string' && x.trim()).slice(0, 8) : [], patch, actions: Array.isArray(r.actions) ? r.actions.filter(a => a && /^(remove_photo|set_fond)$/.test(a.type)) : [] };
 }
 
 module.exports = async (req, res) => {

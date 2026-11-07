@@ -107,7 +107,7 @@ function render() {
   bind(); if (f) renderPhotos();
 }
 function ficheHtml(f) {
-  const nt = (cur.notes || []).length ? `<div class="notes"><b>À confirmer</b>${cur.notes.map(n => '• ' + esc(n)).join('<br>')}</div>` : '';
+  const nt = '<div class="notes" id="notes"></div>';
   const v = (k, lab, ph = '') => `<label>${lab}<input data-f="${k}" value="${esc(f[k] || '')}" placeholder="${ph}"></label>`;
   return chatHtml() + `<div class="card"><h2><i>2</i> Fiche — vérifie et corrige</h2><p class="hint">Tout est modifiable. Les modifications sont enregistrées automatiquement.</p>${nt}
    <div class="g3">${v('nom', 'Nom')}${v('ville', 'Ville')}<label>Type<select data-f="type">${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement'], ['commerce', 'Commerce / autre']].map(([x, n]) => `<option value="${x}" ${f.type === x ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
@@ -215,6 +215,7 @@ function bind() {
   $('#pub2').onclick = async () => { const b = $('#pub2'); b.disabled = true; $('#pm').textContent = 'Import…'; const [ok, n] = await addPhotoUrls($('#pu').value); $('#pm').textContent = `${ok} photo(s) importée(s) sur ${n} lien(s)` + (ok < n ? ' — certains liens expirent vite : recopie-les juste avant.' : ''); b.disabled = false; if (ok) $('#pu').value = ''; };
   phd.ondragover = e => { e.preventDefault(); phd.classList.add('h'); }; phd.ondragleave = () => phd.classList.remove('h'); phd.ondrop = e => { e.preventDefault(); phd.classList.remove('h'); addPhotos([...e.dataTransfer.files]); };
   $('#all').onclick = downloadAll;
+  paintNotes();
   $('#cs').onclick = sendChat; $('#ci').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
   $('#cu').onclick = () => { if (!undo) return; cur.fiche = undo.fiche; cur.photos = undo.photos; cur.fond = undo.fond; undo = null; (cur.chat = cur.chat || []).push({ r: 'a', t: '↶ Dernière modification annulée.' }); save(); render(); };
 }
@@ -253,6 +254,34 @@ async function sendChat() {
     cur.chat.push({ r: 'a', t: (r.message || 'Fait.') + (ch.length ? '\n✔ Modifié : ' + ch.join(', ') : '') });
   } catch (e) { cur.chat.push({ r: 'a', t: 'Erreur : ' + e.message }); }
   save(); render(); const c = $('#chat'); if (c) c.scrollTop = c.scrollHeight; $('#ci') && $('#ci').focus();
+}
+
+
+/* ---------- points à confirmer : OK / KO puis « Confirmer » ---------- */
+const nn = () => (cur.notes = (cur.notes || []).map(n => typeof n === 'string' ? { t: n, s: '', c: '' } : n));
+function liteFiche() { const f = cur.fiche, l = Object.assign({}, f, { slogan: f.slogan?.fr || '', description: f.description?.fr || '', services: (f.services || []).map(x => x.fr) }); Object.keys(l).filter(k => k[0] === '_').forEach(k => delete l[k]); return l; }
+function paintNotes() {
+  const el = $('#notes'); if (!el) return; nn(); if (!cur.notes.length) { el.style.display = 'none'; return; } el.style.display = '';
+  const sel = cur.notes.filter(n => n.s).length;
+  el.innerHTML = '<b>À confirmer — marque chaque point : OK (je garde) ou KO (je corrige)</b>' + cur.notes.map((n, i) => `<div class="ni"><div class="nt">${esc(n.t)}</div><div class="nb"><button class="ok ${n.s === 'ok' ? 'on' : ''}" data-i="${i}" data-s="ok">✓ OK</button><button class="ko ${n.s === 'ko' ? 'on' : ''}" data-i="${i}" data-s="ko">✗ KO</button></div>${n.s === 'ko' ? `<input class="nc" data-i="${i}" placeholder="Bonne valeur ou précision (facultatif)" value="${esc(n.c || '')}">` : ''}</div>`).join('') + `<div class="row" style="margin-top:10px"><button class="b" id="nconf" ${sel ? '' : 'disabled'}>Confirmer la sélection (${sel})</button><button class="b o s" id="nallok">Tout marquer OK</button></div>`;
+  el.querySelectorAll('.nb button').forEach(b => b.onclick = () => { const n = cur.notes[+b.dataset.i]; n.s = n.s === b.dataset.s ? '' : b.dataset.s; save(); paintNotes(); });
+  el.querySelectorAll('.nc').forEach(i => i.oninput = () => { cur.notes[+i.dataset.i].c = i.value; save(); });
+  $('#nallok').onclick = () => { cur.notes.forEach(n => n.s = 'ok'); save(); paintNotes(); };
+  $('#nconf').onclick = confirmNotes;
+}
+async function confirmNotes() {
+  nn(); const ok = cur.notes.filter(n => n.s === 'ok'), ko = cur.notes.filter(n => n.s === 'ko'); if (!ok.length && !ko.length) return;
+  const b = $('#nconf'); b.disabled = true; b.textContent = 'Traitement…'; let extra = [], line = [];
+  if (ko.length) {
+    const ins = 'Ces points « à confirmer » sont marqués KO par l\'utilisateur : corrige la fiche en conséquence.\n' + ko.map((n, i) => `${i + 1}. ${n.t}${n.c ? '\n   Précision de l\'utilisateur : ' + n.c : ''}`).join('\n') + '\nSi une précision donne la bonne valeur, applique-la telle quelle. Sinon cherche une meilleure source ; si tu ne trouves rien de fiable, vide le champ concerné plutôt que de garder une donnée douteuse.' + (ok.length ? '\nPoints validés OK (ne les remets pas en question) :\n' + ok.map(n => '- ' + n.t).join('\n') : '');
+    try {
+      const r = await api('/api/fiche', { mode: 'assist', instruction: ins, fiche: liteFiche(), nbPhotos: cur.photos.length, fond: cur.fond, history: [] }), ch = applyAssist(r);
+      extra = r.notes || []; line.push((r.message || 'Corrigé.') + (ch.length ? '\n✔ Modifié : ' + ch.join(', ') : ''));
+    } catch (e) { alert(e.message); paintNotes(); return; }
+  }
+  cur.chat = cur.chat || []; cur.chat.push({ r: 'a', t: `Points à confirmer traités : ${ok.length} OK, ${ko.length} KO.` + (line.length ? '\n' + line.join('\n') : '') });
+  cur.notes = cur.notes.filter(n => !n.s).concat(extra.map(t => ({ t: String(t), s: '', c: '' })));
+  save(); render();
 }
 
 /* ---------- recherche ---------- */
