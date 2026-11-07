@@ -168,7 +168,7 @@ function ficheHtml(f) {
    ${v('booking', 'Lien de réservation en ligne (Airbnb, TheFork…)')}
    <div class="g2"><label>Horaires (un jour par ligne, vide ou « Fermé »)<div style="display:grid;gap:5px;margin-top:5px">${DAYN.map((d, i) => `<div style="display:grid;grid-template-columns:84px 1fr;gap:8px;align-items:center"><span style="font-weight:600;color:var(--ink)">${d}</span><input data-h="${i}" style="margin:0" value="${esc((f.horaires || [])[i] || '')}" placeholder="12h–14h · 19h–22h"></div>`).join('')}</div></label>
    <div><label>Services (un par ligne)<textarea data-sv rows="6">${esc((f.services || []).map(s => s.fr || s).join('\n'))}</textarea></label>
-   <label>Carte — « # Catégorie » puis « Plat | prix | description »<textarea data-f="carteTxt" rows="8" placeholder="# Burgers&#10;Le Classique | 12,50 € | steak, cheddar">${esc(f.carteTxt || '')}</textarea></label></div></div></div>
+   <label>Carte — « # Catégorie » puis « Plat | prix | description »<textarea data-f="carteTxt" rows="8" placeholder="# Burgers&#10;Le Classique | 12,50 € | steak, cheddar">${esc(f.carteTxt || '')}</textarea></label><div class="row" style="margin-top:8px"><button class="b o s" id="cim">📄 Importer la carte (PDF, JPG, PNG)</button><input type="file" id="cif" accept="application/pdf,image/*" multiple hidden><span class="hint" id="cm" style="margin:0">Je lis le fichier, je remplis la carte et j'ouvre l'aperçu.</span></div></div></div></div>
   <div class="card"><h2><i>3</i> Style</h2><div class="g4">
    <label>Couleur sombre<input type="color" data-f="c1" value="${f.c1 || '#1f2a44'}"></label><label>Accent<input type="color" data-f="c2" value="${f.c2 || '#2b899d'}"></label><label>Survol des boutons<input type="color" data-f="c3" value="${f.c3 || '#f2b632'}"></label><div style="grid-column:1/-1" class="row"><button class="b o s" id="nch">🎨 Nouvelle charte graphique</button><button class="b o s" id="nchr" title="Palette et style au hasard">🎲 Au hasard</button><span class="hint" style="margin:0">Palette (et style) différents des autres établissements.</span></div>
    <label>Titres<select data-f="police"><option value="serif" ${f.police !== 'sans' ? 'selected' : ''}>Élégant (serif + script)</option><option value="sans" ${f.police === 'sans' ? 'selected' : ''}>Moderne (Montserrat gras)</option></select></label></div>
@@ -183,6 +183,30 @@ function ficheHtml(f) {
    <label>Note Google (affichée dans Point Info « Vitrine »)<input data-f="avis" value="${esc(f.avis || '')}" placeholder="4,6/5 · plus de 1 000 avis Google"></label></div>
   <div class="card"><h2><i>6</i> Générer</h2><p class="hint">Chaque ZIP se téléverse tel quel sur Vercel. Aperçu = exactement ce qui sera dans le ZIP.</p><div class="out" id="out"></div>
    <div class="row" style="margin-top:14px"><button class="b" id="all">⬇ Tout télécharger (ZIP séparés)</button></div><div id="msg2"></div></div>`;
+}
+/* ---------- carte depuis un PDF / une photo ---------- */
+async function pdfToJpegs(file) {
+  if (!window.pdfjsLib) { await new Promise((ok, ko) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'; s.onload = ok; s.onerror = () => ko(new Error('Lecteur PDF indisponible')); document.head.appendChild(s); }); pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise, out = [];
+  for (let i = 1; i <= Math.min(pdf.numPages, 6); i++) { const pg = await pdf.getPage(i), v0 = pg.getViewport({ scale: 1 }), vp = pg.getViewport({ scale: 1500 / Math.max(v0.width, v0.height) }), c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; out.push(await new Promise(r => c.toBlob(r, 'image/jpeg', .82))); }
+  return out;
+}
+async function importCarte(list, btn) {
+  const m = $('#cm'), say = t => { if (m) m.textContent = t; }, f = cur.fiche; btn.disabled = true;
+  try {
+    say('Préparation des fichiers…'); const files = [];
+    for (const x of list) {
+      if (x.type === 'application/pdf' || /\.pdf$/i.test(x.name)) { if (x.size <= 3200000) files.push({ type: 'application/pdf', b64: await toB64(x) }); else for (const bl of await pdfToJpegs(x)) files.push({ type: 'image/jpeg', b64: await toB64(bl) }); }
+      else files.push({ type: 'image/jpeg', b64: await toB64((await toJpeg(x, 1700)).blob) });
+    }
+    if (files.length > 6) files.length = 6;
+    if (files.reduce((n, x) => n + x.b64.length, 0) > 4300000) throw new Error('Fichier trop lourd : envoie moins de pages ou une version allégée.');
+    say('Claude lit la carte… (jusqu\'à 1 minute)');
+    const r = await api('/api/fiche', { mode: 'carte_file', files, nom: f.nom, ville: f.ville });
+    const had = (f.carteTxt || '').trim(); f.carteTxt = had && !confirm('Remplacer la carte actuelle par celle du fichier ?\nOK = remplacer, Annuler = ajouter à la suite.') ? had + '\n' + r.carteTxt : r.carteTxt;
+    delete f.carteTr; save(); render(); const m2 = $('#cm'); if (m2) m2.textContent = '✔ Carte importée (' + parseCarte(f.carteTxt).reduce((n, c) => n + c.items.length, 0) + ' plats).' + (r.notes ? ' À vérifier : ' + r.notes : '');
+    preview('carte');
+  } catch (e) { say('⚠ ' + e.message); } finally { btn.disabled = false; }
 }
 /* ---------- vidéos ---------- */
 function renderVideos() {
@@ -315,6 +339,7 @@ async function publish(k, btn) {
 function bind() {
   document.querySelectorAll('[data-l]').forEach(e => e.oninput = () => { cur.links[e.dataset.l] = e.value.trim(); save(); });
   $('#go').onclick = search;
+  { const bt = $('#cim'), fi = $('#cif'); if (bt) { bt.onclick = () => fi.click(); fi.onchange = () => { const l = [...fi.files]; fi.value = ''; if (l.length) importCarte(l, bt); }; } }
   { const a = $('#nch'), b = $('#nchr'); if (a) a.onclick = () => newCharte(false); if (b) b.onclick = () => newCharte(true); }
   const hsrc = async html => { if (!html || html.length < 200) return; const r = parseHtml(html); cur.src = r; save(); $('#hs').innerHTML = `✔ ${r.images.length} image(s) et ${r.text.length} caractères de texte détectés <a href="#" id="hx">effacer</a>`; $('#hh').value = ''; hx(); };
   const hx = () => { const x = $('#hx'); if (x) x.onclick = e => { e.preventDefault(); cur.src = null; save(); $('#hs').textContent = ''; }; }; hx();

@@ -164,6 +164,19 @@ async function browse(b) {
   return { resultats: out.slice(0, 80), total: out.length };
 }
 
+// Carte à partir d'un PDF / photo : Claude lit le document et renvoie la carte au format NovaGen
+async function carteFile(b) {
+  const files = (b.files || []).slice(0, 6); if (!files.length) throw new Error('Aucun fichier reçu');
+  const content = files.map(f => f.type === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.b64 } } : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: f.b64 } });
+  content.push({ type: 'text', text: `Voici la carte (menu) de l'établissement « ${String(b.nom || '').slice(0, 80)} »${b.ville ? ' à ' + String(b.ville).slice(0, 60) : ''}, en PDF ou en photo(s). Transcris-la FIDÈLEMENT, sans rien inventer ni omettre, dans ce format texte (une ligne par plat) :
+# Nom de la catégorie | sous-titre ou description de la catégorie (facultatif)
+Nom du plat | prix | description / ingrédients (facultatif)
+Règles : garde les noms et le texte d'origine (corrige seulement les fautes évidentes de lecture) ; prix écrits comme sur la carte avec le symbole € (ex. 12,50 €) ; plat à plusieurs formats ou menu : mets le plus bas prix ou le prix du menu et précise le reste dans la description ; ajoute 🌿 juste après le nom d'un plat marqué végétarien/végé sur la carte ; ignore publicités, adresses et mentions légales ; si un mot est illisible, laisse-le de côté plutôt que de le deviner.
+Réponds UNIQUEMENT par un objet JSON : {"carteTxt":"le texte de la carte avec des \n entre les lignes","notes":"points incertains ou illisibles (vide s'il n'y en a pas)"}` });
+  const j = await claude({ model: MODEL(), max_tokens: 8000, messages: [{ role: 'user', content }] });
+  const r = jsonOf(textOf(j)); if (!String(r.carteTxt || '').trim()) throw new Error('Aucun plat lisible dans ce fichier');
+  return { carteTxt: String(r.carteTxt), notes: String(r.notes || '') };
+}
 const PATCH_KEYS = ['nom', 'ville', 'type', 'slogan', 'descCourte', 'description', 'adresse', 'tel', 'email', 'site', 'facebook', 'instagram', 'booking', 'horaires', 'services', 'carteTxt', 'c1', 'c2', 'c3', 'police', 'logoForme', 'style', 'pstyle', 'avis', 'videoTitre', 'videoSur', 'videoTexte'];
 async function assist(b) {
   const hist = (b.history || []).map(m => (m.r === 'u' ? 'Utilisateur : ' : 'Assistant : ') + String(m.t || '').slice(0, 400)).join('\n');
@@ -205,6 +218,7 @@ module.exports = async (req, res) => {
     if (b.mode === 'browse') return res.json(await browse(b));
     if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY manquante dans Vercel (Settings → Environment Variables).' });
     if (b.mode === 'suggest_web') return res.json(await suggestWeb(b));
+    if (b.mode === 'carte_file') return res.json(await carteFile(b));
     if (b.mode === 'assist') return res.json(await assist(b));
     if (b.mode === 'translate') return res.json(await translate(b));
     return res.json(await search(b));
