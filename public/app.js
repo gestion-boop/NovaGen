@@ -152,7 +152,7 @@ function render() {
    <div class="logo" style="margin-bottom:14px">${cur.logo ? `<img id="lg" src="${URL.createObjectURL(cur.logo)}" style="background:${logoBg(cur)}">` : ''}<div class="drop" id="lgd" style="flex:1">${cur.logo ? 'Remplacer le logo' : 'Déposer le logo (facultatif : sinon cherché sur le site)'}<input type="file" id="lgf" accept="image/*" hidden></div></div>
    <div class="row"><button class="b" id="go">🔎 Chercher les infos</button><span class="hint" style="margin:0">Compte 30 à 60 s.</span></div><div id="msg"></div></div>
   ${f ? ficheHtml(f) : ''}`;
-  bind(); if (f) renderPhotos();
+  bind(); if (f) { renderPhotos(); renderVideos(); }
 }
 function ficheHtml(f) {
   const nt = '<div class="notes" id="notes"></div>';
@@ -175,8 +175,24 @@ function ficheHtml(f) {
   <div class="card"><h2><i>4</i> Photos <small style="font-weight:400;color:var(--mu)" id="pc"></small></h2><p class="hint">★ = photo de fond de l'intro. ✕ = retirer. Tu peux en déposer d'autres.</p>
    <div class="drop" id="phd">Glisser des photos (ou un ZIP de photos) ici, ou cliquer. Tu peux aussi coller des images avec Cmd+V.<input type="file" id="phf" accept="image/*,.zip" multiple hidden></div>
    <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--b1)">Importer depuis des liens d'images (Facebook, Instagram, site…)</summary><p class="hint" style="margin:8px 0">Sur Facebook : clic droit sur une photo → « Copier l'adresse de l'image », puis colle les adresses ici (une par ligne ou séparées par un espace).</p><textarea id="pu" rows="4" placeholder="https://scontent…"></textarea><div class="row" style="margin-top:8px"><button class="b o s" id="pub2">Importer ces liens</button><span class="hint" id="pm" style="margin:0"></span></div></details><div class="ph" id="ph"></div></div>
-  <div class="card"><h2><i>5</i> Générer</h2><p class="hint">Chaque ZIP se téléverse tel quel sur Vercel. Aperçu = exactement ce qui sera dans le ZIP.</p><div class="out" id="out"></div>
+  <div class="card"><h2><i>5</i> Vidéos &amp; compléments</h2><p class="hint">Pour la page Vidéo (cadre téléphone, son, rejouer). Plusieurs vidéos = lues l'une après l'autre. Déployer accepte ~3 Mo par fichier ; au-delà, télécharge le ZIP et dépose-le sur Vercel. Les vidéos restent sur cet ordinateur (non synchronisées).</p>
+   <div class="drop" id="vdd">Glisser des vidéos (mp4, webm, mov) ici, ou cliquer<input type="file" id="vdf" accept="video/*" multiple hidden></div><div id="vl" style="margin-top:8px"></div>
+   <div class="g2" style="margin-top:10px"><label>Étiquette<input data-f="videoSur" value="${esc(f.videoSur || '')}" placeholder="Notre signature"></label><label>Titre de la page vidéo<input data-f="videoTitre" value="${esc(f.videoTitre || '')}" placeholder="Le Flambadou"></label></div>
+   <label>Texte à côté de la vidéo<textarea data-f="videoTexte" rows="3" placeholder="Une cuisson ancestrale…">${esc(f.videoTexte || '')}</textarea></label>
+   <label>Note Google (affichée dans Point Info « Vitrine »)<input data-f="avis" value="${esc(f.avis || '')}" placeholder="4,6/5 · plus de 1 000 avis Google"></label></div>
+  <div class="card"><h2><i>6</i> Générer</h2><p class="hint">Chaque ZIP se téléverse tel quel sur Vercel. Aperçu = exactement ce qui sera dans le ZIP.</p><div class="out" id="out"></div>
    <div class="row" style="margin-top:14px"><button class="b" id="all">⬇ Tout télécharger (ZIP séparés)</button></div><div id="msg2"></div></div>`;
+}
+/* ---------- vidéos ---------- */
+function renderVideos() {
+  const l = $('#vl'); if (!l) return; cur.videos = cur.videos || [];
+  l.innerHTML = cur.videos.map((v, i) => `<div class="vi" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-size:13px"><span>🎬 ${esc(v.name || 'vidéo ' + (i + 1))} · ${(v.blob.size / 1048576).toFixed(1)} Mo${v.blob.size > 3300000 ? ' ⚠ trop lourde pour « Déployer »' : ''}</span><span><button class="b o s" data-vu="${i}">↑</button> <button class="b o s" data-vd="${i}">↓</button> <button class="b o s" data-vr="${i}">✕</button></span></div>`).join('') || '<p class="hint" style="margin:0">Aucune vidéo.</p>';
+  const mv = (i, d) => { const j = i + d; if (j < 0 || j >= cur.videos.length) return; [cur.videos[i], cur.videos[j]] = [cur.videos[j], cur.videos[i]]; save(); renderVideos(); };
+  l.querySelectorAll('[data-vu]').forEach(b => b.onclick = () => mv(+b.dataset.vu, -1)); l.querySelectorAll('[data-vd]').forEach(b => b.onclick = () => mv(+b.dataset.vd, 1));
+  l.querySelectorAll('[data-vr]').forEach(b => b.onclick = () => { cur.videos.splice(+b.dataset.vr, 1); save(); renderVideos(); });
+  const add = fl => { for (const x of fl) if (/^video\//.test(x.type) || /\.(mp4|webm|mov)$/i.test(x.name)) cur.videos.push({ id: 'v' + Date.now() + Math.random().toString(36).slice(2, 5), name: x.name, blob: x.type ? x : new Blob([x], { type: 'video/mp4' }) }); save(); renderVideos(); renderOut(); };
+  const d = $('#vdd'), inp = $('#vdf'); d.onclick = () => inp.click(); inp.onchange = () => { add([...inp.files]); inp.value = ''; };
+  d.ondragover = e => { e.preventDefault(); d.classList.add('on'); }; d.ondragleave = () => d.classList.remove('on'); d.ondrop = e => { e.preventDefault(); d.classList.remove('on'); add([...e.dataTransfer.files]); };
 }
 /* ---------- doublons : même image (même en taille différente) ---------- */
 async function dhash(blob) {
@@ -209,17 +225,17 @@ function renderPhotos() {
   dedupePhotos().then(n => { if (n) { renderPhotos(); const m = $('#msg'); if (m) { m.className = 'on i'; m.textContent = n + ' doublon(s) supprimé(s).'; } } });
   renderOut();
 }
-const PUB = ['intro', 'infos', 'galerie', 'carte', 'reservation'];
+const PUB = ['intro', 'infos', 'galerie', 'carte', 'reservation', 'video'];
 const defProject = k => (slug() + '-' + k).toLowerCase();
 let vproj = null, vperr = '', vload = false;
-const KW = { intro: ['intro'], infos: ['info', 'point'], galerie: ['galerie', 'gallery', 'photo'], carte: ['carte', 'menu'], reservation: ['resa', 'reserv', 'book'] };
+const KW = { intro: ['intro'], infos: ['info', 'point'], galerie: ['galerie', 'gallery', 'photo'], carte: ['carte', 'menu'], reservation: ['resa', 'reserv', 'book'], video: ['video', 'signature', 'flambadou'] };
 function guess(k) { if (!vproj) return defProject(k); const s = slug().toLowerCase(), m = vproj.filter(p => p.name.replace(/-|et/g, '').includes(s.replace(/et/g, '')) && KW[k].some(w => p.name.includes(w))); return m.length === 1 ? m[0].name : defProject(k); }
 async function loadProjects() { if (vload) return; vload = true; try { vproj = (await api('/api/publish', { mode: 'projects' })).projects || []; } catch (e) { vproj = []; vperr = e.message; } if ($('#out')) renderOut(); }
 const projOf = k => ((cur.vp || {})[k] || guess(k)).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
 const PG = ['intro', 'infos', 'galerie', 'carte', 'reservation'];
 /* 🎲 autre proposition : nouveau style (et nouvelle photo de fond) pour UNE page, puis aperçu */
 function randomize(k) {
-  const f = cur.fiche, now = styleOfPg(f, k), opts = ['1', '2', '3', '4'].filter(x => x !== now), pick = opts[Math.floor(Math.random() * opts.length)];
+  const f = cur.fiche, now = styleOfPg(f, k), opts = (k === 'infos' ? ['1', '2', '3', '4', '5', '6'] : ['intro', 'carte'].includes(k) ? ['1', '2', '3', '4', '5'] : ['1', '2', '3', '4']).filter(x => x !== now), pick = opts[Math.floor(Math.random() * opts.length)];
   f.pstyle = Object.assign({}, f.pstyle, { [k]: pick });
   if (['intro', 'infos', 'carte'].includes(k) && cur.photos.length > 1) { const was = (f.pfond && f.pfond[k] != null) ? +f.pfond[k] : cur.fond, c = cur.photos.map((_, i) => i).filter(i => i !== was); f.pfond = Object.assign({}, f.pfond, { [k]: c[Math.floor(Math.random() * c.length)] }); }
   save(); renderOut(); preview(k);
@@ -236,7 +252,7 @@ async function applyComment(k, btn) {
 }
 function renderOut() {
   const o = $('#out'); if (!o) return; const f = cur.fiche, heb = f.type === 'hebergement', hasC = parseCarte(f.carteTxt).length;
-  const items = [['intro', 'Intro', '5 s · iris · signature NovaVisio'], ['infos', 'Point Info', 'horaires, adresse, contact, services'], ['galerie', 'Galerie', cur.photos.length + ' photo(s) + lightbox', !cur.photos.length], ['carte', 'Carte', 'plats et prix', heb || !hasC], ['reservation', heb ? 'Réservation / demande' : 'Réservation', 'récap + appel / e-mail / Messenger', f.type === 'commerce'], ['boutons', 'Boutons glossy', '30 icônes × 3 états, 256 et 128 px']];
+  const items = [['intro', 'Intro', '5 s · iris · signature NovaVisio'], ['infos', 'Point Info', 'horaires, adresse, contact, services'], ['galerie', 'Galerie', cur.photos.length + ' photo(s) + lightbox', !cur.photos.length], ['carte', 'Carte', 'plats et prix', heb || !hasC], ['reservation', heb ? 'Réservation / demande' : 'Réservation', 'récap + appel / e-mail / Messenger', f.type === 'commerce'], ['video', 'Vidéo', (cur.videos || []).length + ' vidéo(s) · cadre téléphone, son, progression', !(cur.videos || []).length], ['boutons', 'Boutons glossy', '30 icônes × 3 états, 256 et 128 px']];
   o.innerHTML = items.map(([k, n, d, off]) => `<div class="o" style="${off ? 'opacity:.45' : ''}"><b>${n} <span class="bd" id="bd-${k}"></span></b><small>${off ? 'Non disponible pour cette fiche' : d}</small>
    ${PUB.includes(k) && !off ? `<label style="margin:0;font-size:11px">Projet Vercel à mettre à jour<input data-vp="${k}" list="vpl" value="${esc(projOf(k))}" style="margin-top:3px;padding:7px 9px;font-size:12.5px"></label><div class="vs" id="vs-${k}"></div><div class="lk" id="lk-${k}" style="font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"></div>` : ''}
    <div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>Aperçu</button><button class="b o s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button>${PUB.includes(k) && !off ? `<button class="b s" data-pub="${k}">🚀 Déployer</button>` : ''}</div>${PG.includes(k) && !off ? `<div style="border-top:1px dashed var(--line);padding-top:8px"><small id="sty-${k}" style="display:block;margin-bottom:5px"></small><textarea data-pc="${k}" rows="2" placeholder="Un changement ? ex. fond plus sombre, titres plus gros, carte plus aérée…" style="margin:0;min-height:0;font-size:12.5px;padding:7px 9px"></textarea><div class="row" style="margin-top:6px"><button class="b s" data-pa="${k}">Appliquer</button><button class="b o s" data-rnd="${k}" title="Propose un autre design pour cette page">🎲 Autre proposition</button></div><div class="vs" id="pm-${k}"></div></div>` : ''}<div class="pl" id="pl-${k}"></div></div>`).join('');
@@ -328,14 +344,14 @@ function chatHtml() {
   return `<div class="card"><h2>💬 Assistant de la fiche</h2><p class="hint">Dis ce que tu veux changer : « ajoute un menu enfant à 9 € dans la carte », « passe le dimanche en fermé », « retire la photo 3 », « mets la photo 5 en fond d'intro », « vérifie le téléphone sur Google », « réécris la description plus chaleureuse ».</p>
    <div id="chat">${h}</div><div class="row"><input id="ci" style="flex:1;min-width:220px;margin:0" placeholder="Écris ta demande…"><button class="b" id="cs">Envoyer</button><button class="b o s" id="cu" ${undo ? '' : 'disabled'}>↶ Annuler</button></div></div>`;
 }
-const LAB = { style: 'style des pages', pstyle: 'style de la page', nom: 'nom', ville: 'ville', type: 'type', slogan: 'accroche', descCourte: 'description courte', description: 'description longue', adresse: 'adresse', tel: 'téléphone', email: 'e-mail', site: 'site', facebook: 'Facebook', instagram: 'Instagram', booking: 'lien de réservation', horaires: 'horaires', services: 'services', carteTxt: 'carte', c1: 'couleurs', c2: 'couleurs', c3: 'couleurs', police: 'police', logoForme: 'forme du logo' };
+const LAB = { avis: 'note Google', videoTitre: 'titre vidéo', videoSur: 'étiquette vidéo', videoTexte: 'texte vidéo', style: 'style des pages', pstyle: 'style de la page', nom: 'nom', ville: 'ville', type: 'type', slogan: 'accroche', descCourte: 'description courte', description: 'description longue', adresse: 'adresse', tel: 'téléphone', email: 'e-mail', site: 'site', facebook: 'Facebook', instagram: 'Instagram', booking: 'lien de réservation', horaires: 'horaires', services: 'services', carteTxt: 'carte', c1: 'couleurs', c2: 'couleurs', c3: 'couleurs', police: 'police', logoForme: 'forme du logo' };
 function applyAssist(r) {
   const f = cur.fiche, ch = new Set();
   undo = { fiche: JSON.parse(JSON.stringify(f)), photos: cur.photos.slice(), fond: cur.fond };
   for (const [k, v] of Object.entries(r.patch || {})) {
     if (k === 'slogan' || k === 'descCourte' || k === 'description') f[k] = Object.assign(obj4(f[k]), { fr: String(v?.fr ?? v ?? '') });
     else if (k === 'services') { const old = Object.fromEntries((f.services || []).map(x => [x.fr, x])); f.services = (Array.isArray(v) ? v : []).map(x => String(x?.fr ?? x).trim()).filter(Boolean).map(x => old[x] || { fr: x, es: x, de: x, en: x }); }
-    else if (k === 'pstyle') f.pstyle = Object.assign({}, f.pstyle, Object.fromEntries(Object.entries(v && typeof v === 'object' ? v : {}).filter(([, b]) => ['1', '2', '3', '4'].includes(String(b))).map(([a, b]) => [a, String(b)])));
+    else if (k === 'pstyle') f.pstyle = Object.assign({}, f.pstyle, Object.fromEntries(Object.entries(v && typeof v === 'object' ? v : {}).filter(([, b]) => ['1', '2', '3', '4', '5', '6'].includes(String(b))).map(([a, b]) => [a, String(b)])));
     else if (k === 'horaires') f.horaires = (Array.isArray(v) ? v : []).slice(0, 7).map(String);
     else f[k] = String(v ?? '');
     if (/^c[123]$/.test(k)) f._colorsSet = true; ch.add(LAB[k] || k);
@@ -465,7 +481,7 @@ async function resolve(files) {
   }
   return m;
 }
-async function make(k) { await ensureTr(cur.fiche); const out = await buildAll({ fiche: cur.fiche, photos: cur.photos, logo: cur.logo, fond: cur.fond }, [k]); return out[k] ? resolve(out[k]) : null; }
+async function make(k) { await ensureTr(cur.fiche); const out = await buildAll({ fiche: cur.fiche, photos: cur.photos, videos: cur.videos || [], logo: cur.logo, fond: cur.fond }, [k]); return out[k] ? resolve(out[k]) : null; }
 const slug = () => slugOf(cur.fiche.nom);
 const dl = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
 async function zipOf(files) { const z = new JSZip(); for (const [p, v] of Object.entries(files)) z.file(p, v); return z.generateAsync({ type: 'blob', compression: 'DEFLATE' }); }
@@ -476,7 +492,7 @@ async function download(k, btn) {
 async function downloadAll() {
   const b = $('#all'); b.disabled = true; b.textContent = 'Génération…';
   try {
-    await ensureTr(cur.fiche); const out = await buildAll({ fiche: cur.fiche, photos: cur.photos, logo: cur.logo, fond: cur.fond });
+    await ensureTr(cur.fiche); const out = await buildAll({ fiche: cur.fiche, photos: cur.photos, videos: cur.videos || [], logo: cur.logo, fond: cur.fond });
     for (const [k, files] of Object.entries(out)) { dl(await zipOf(await resolve(files)), `${slug()}-${k}.zip`); await new Promise(r => setTimeout(r, 700)); }
   } catch (e) { alert(e.message); } finally { b.disabled = false; b.textContent = '⬇ Tout télécharger (ZIP séparés)'; }
 }

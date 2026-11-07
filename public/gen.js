@@ -79,10 +79,10 @@ function parseHours(s) {
 function parseCarte(txt) {
   const cats = []; let cur = null;
   String(txt || '').split('\n').map(l => l.trim()).filter(Boolean).forEach(l => {
-    if (/^#/.test(l)) { cur = { cat: l.replace(/^#+\s*/, ''), items: [] }; cats.push(cur); return; }
+    if (/^#/.test(l)) { const q = l.replace(/^#+\s*/, '').split('|').map(x => x.trim()); cur = { cat: q[0], sub: q[1] && !/^(photo\s*)?\d+$/i.test(q[1]) ? q[1] : '', photo: +((q.find((x, i) => i && /^(photo\s*)?\d+$/i.test(x)) || '').replace(/\D/g, '')) || 0, items: [] }; cats.push(cur); return; }
     if (!cur) { cur = { cat: '', items: [] }; cats.push(cur); }
-    const p = l.split('|').map(x => x.trim());
-    cur.items.push({ nom: p[0], prix: p[1] || '', desc: p[2] || '' });
+    const p = l.split('|').map(x => x.trim()), veg = /🌿|\(\s*v(?:é|e)g(?:é|e)?(?:tarien)?\s*\)/i.test(p[0]);
+    cur.items.push({ nom: p[0].replace(/🌿|\(\s*v(?:é|e)g(?:é|e)?(?:tarien)?\s*\)/ig, '').trim(), prix: p[1] || '', desc: p[2] || '', veg });
   });
   return cats.filter(c => c.items.length);
 }
@@ -111,8 +111,14 @@ const hashStr = x => { let h = 5381; for (const c of String(x || '').normalize('
 const hsl = (h, sa, l) => { h = ((h % 360) + 360) % 360; sa /= 100; l /= 100; const a = sa * Math.min(l, 1 - l), k = n => { const t = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(t - 3, 9 - t, 1)); }; return rh([k(0) * 255, k(8) * 255, k(4) * 255]); };
 const PALS = [['#2b1a14', '#c0602f', '#f0a868'], ['#1f261a', '#7f8f2e', '#d4c86a'], ['#10243a', '#2f7fb0', '#8fd0e8'], ['#2a1018', '#a3263f', '#f09aa9'], ['#2a2210', '#d9a21b', '#f6d77a'], ['#11261d', '#2f8a56', '#9be0b4'], ['#25142e', '#8a3fa8', '#d8a8ec'], ['#2b1c12', '#b8733a', '#f0c9a0'], ['#1c2128', '#5b7a99', '#b8cde0'], ['#2e1614', '#e0584a', '#ffb1a6'], ['#1f1d33', '#7367c9', '#c9c3f5'], ['#1a1a1a', '#c9a24a', '#f0dc9a'], ['#2e1a22', '#d97a9a', '#f7c6d6'], ['#301a0a', '#e07a10', '#ffc16b']];
 function genPalette(nom, type) { const H = hashStr(nom + '|' + (type || '')), p = PALS[H % PALS.length]; return { c1: p[0], c2: p[1], c3: p[2] }; }
-const STYLES = [['1', 'Classique'], ['2', 'Ardoise'], ['3', 'Moderne'], ['4', 'Magazine']];
-const styleOf = f => { const pg = f._pg && f.pstyle && f.pstyle[f._pg]; return ['1', '2', '3', '4'].includes(String(pg)) ? String(pg) : ['1', '2', '3', '4'].includes(String(f.style)) ? String(f.style) : String(hashStr(f.nom) % 4 + 1); };
+const STYLES = [['1', 'Classique'], ['2', 'Ardoise'], ['3', 'Moderne'], ['4', 'Magazine'], ['5', 'Signature (modèles Mioza / Gaïa)'], ['6', 'Vitrine (modèle Gaïa, Point Info)']];
+const SPECIAL_PG = { intro: 1, infos: 1, carte: 1 };
+const styleOf = f => {
+  const pg = f._pg, sp = pg && SPECIAL_PG[pg], ok = (v, n) => ['1', '2', '3', '4', '5', '6'].slice(0, n).includes(String(v)), x = pg && f.pstyle && f.pstyle[pg];
+  if (ok(x, sp ? 6 : 4)) return String(x);
+  if (sp && f._fond && f.type !== 'hebergement') return pg === 'infos' ? ((hashStr(f.nom) % 2) && (f._names || []).length >= 2 ? '6' : '5') : '5';
+  return ok(f.style, 4) ? String(f.style) : String(hashStr(f.nom) % 4 + 1);
+};
 const styleOfPg = (f, pg) => styleOf(Object.assign({}, f, { _pg: pg }));
 
 /* ---------- fonds : motif selon le type d'établissement + photo allégée ---------- */
@@ -206,6 +212,7 @@ const fontFiles = f => ['dmserif', 'greatvibes', 'm400', 'm600', 'm700', 'm800']
 
 /* ---------- pages ---------- */
 function pageInfos(f) {
+  { const st = styleOf(f); if (st === '5') return pageInfos5(f); if (st === '6') return pageInfos6(f); }
   const ctx = mk(), { t } = ctx, heb = f.type === 'hebergement', sch = heb ? schOf(f) : schOf(f);
   const acts = [];
   if (f.tel) acts.push(`<a class="btn" href="${telHref(f.tel)}">📞 ${t(T.appeler)}</a>`);
@@ -265,6 +272,7 @@ let sx=0;lb.addEventListener('touchstart',e=>sx=e.touches[0].clientX);lb.addEven
 }
 
 function pageCarte(f) {
+  if (+styleOf(f) >= 5) return pageCarte5(f);
   const ctx = mk(), { t } = ctx, cats = parseCarte(f.carteTxt), ctr = f.carteTr || {}; let di = 0; const catT = i => t(Object.assign({ fr: cats[i].cat }, (ctr.cats || [])[i] || {}), 'span');
   const dk = mix(f.c1, '#000000', .45), hl = lum(f.c2) > .4 ? f.c2 : mix(f.c2, '#ffffff', .55);
   const css = `body{background:${dk}}body::before{content:"";position:fixed;inset:-10px;z-index:-1;background:${f._fond ? `linear-gradient(180deg,${dk}cc,${dk}f2),url(assets/img/fond.jpg) center/cover;filter:blur(7px) saturate(1.15)` : `radial-gradient(circle at 12% 8%,${f.c2}66,transparent 50%),radial-gradient(circle at 92% 92%,${hl}33,transparent 45%),${dk}`}}
@@ -305,6 +313,7 @@ $('bc').onclick=async()=>{try{await navigator.clipboard.writeText(txt())}catch(e
 }
 
 function pageIntro(f, hasBg) {
+  const cin = +styleOf(f) >= 5;
   const D = mk(), L = o => JSON.stringify(obj4(o));
   const c1 = mix(f.c1, '#000000', .35), hl = lum(f.c2) > .4 ? f.c2 : mix(f.c2, '#ffffff', .55);
   const logo = f._logo ? (true ? `<img class="lg" src="assets/img/${f._logo}" alt="">` : `<div class="lgw"><img src="assets/img/${f._logo}" alt="${esc(f.nom)}"></div>`) : `<div class="lgw"><div class="fb">${esc(f.nom)}</div></div>`;
@@ -330,7 +339,7 @@ body::after{content:"";position:fixed;inset:2.4vmin;border:1px solid ${hl}77;bor
 @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 body.fin{animation:fin .8s forwards}@keyframes fin{to{opacity:0}}
 @media(orientation:portrait){.lg{width:58vmin;height:58vmin}.lgw img{width:68vw}.sub{font-size:2.8vmin}.sig{flex-direction:column;gap:1.4vmin}.sig .v{font-size:2.8vmin}.sig .n{font-size:5.6vmin}}
-</style></head><body class="s${styleOf(f)}"><div class="bg"></div><div class="c">${logo}<h1 class="vh">${esc(f.nom)}</h1><div class="hello" id="hi">${esc(T.bienvenue.fr)}</div><div class="sub" id="sb">${esc(obj4(sub).fr)}</div></div>
+${cin ? introCinemaCss(f, hl) : ''}</style></head><body class="s${styleOf(f)}"><div class="bg"></div><div class="c">${cin ? `<div class="lw">${logo}<i class="ring r1"></i><i class="ring r2"></i></div>` : logo}<h1 class="vh">${esc(f.nom)}</h1><div class="hello" id="hi">${esc(T.bienvenue.fr)}</div><div class="sub" id="sb">${esc(obj4(sub).fr)}</div></div>
 <div class="sig"><span class="v" id="vi">${esc(T.visite.fr)}</span><span class="n"><i>by</i> NovaVisio</span></div><svg id="iris" style="position:fixed;inset:0;width:100%;height:100%;z-index:50;pointer-events:none"><defs>
 <linearGradient id="ng" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#345C95"/><stop offset=".55" stop-color="#2B899D"/><stop offset="1" stop-color="#125C68"/></linearGradient>
 <mask id="mk"><rect id="mr" fill="#fff"/><polygon id="hole" fill="#000"/></mask></defs>
@@ -339,7 +348,7 @@ body.fin{animation:fin .8s forwards}@keyframes fin{to{opacity:0}}
 (function(){const T={bn:${JSON.stringify(T.bienvenue)},vi:${JSON.stringify(T.visite)},sb:${L(sub)}};
 let l='';try{l=localStorage.getItem('nt_lang')||''}catch(e){}
 if(!T.bn[l])l=((navigator.language||'fr').slice(0,2).toLowerCase());if(!T.bn[l])l='fr';
-document.documentElement.lang=l;hi.textContent=T.bn[l];sb.textContent=T.sb[l];vi.textContent=T.vi[l]})();
+document.documentElement.lang=l;hi.textContent=T.bn[l];sb.textContent=T.sb[l];vi.textContent=T.vi[l]})();${cin ? introCinemaJs : ''}
 /* Iris NovaTour (ouverture appareil photo bleu) — standard de toutes les intros */
 (function(){const sv=document.getElementById('iris'),NB=8,ns='http://www.w3.org/2000/svg',bl=document.getElementById('blades');
  for(let i=0;i<NB;i++)bl.appendChild(document.createElementNS(ns,'line'));
@@ -435,17 +444,19 @@ async function buildAll(p, which) {
   const want = k => !which || which.includes(k);
   const logoOnly = p.logo ? { 'assets/img/logo.png': p.logo } : {};
   const fondIdx = pg => Math.min(Math.max((f.pfond && f.pfond[pg] != null) ? +f.pfond[pg] : (p.fond || 0), 0), names.length - 1);
-  const fondFor = async pg => hasPh ? { 'assets/img/fond.jpg': await toFond(p.photos[fondIdx(pg)].blob) } : {};
-  if (hasPh) f._fond = true;
+  const fondFor = async pg => (f._fondIdx = hasPh ? fondIdx(pg) : -1, hasPh) ? { 'assets/img/fond.jpg': await toFond(p.photos[fondIdx(pg)].blob) } : {};
+  if (hasPh) f._fond = true; f._names = names;
   if (want('intro')) { f._pg = 'intro';
     const bgIdx = fondIdx('intro'), bgf = hasPh ? { 'assets/img/bg.jpg': p.photos[bgIdx].blob } : {};
     out.intro = withFonts(pageIntro(f, hasPh), Object.assign({}, logoOnly, bgf));
   }
-  if (want('infos')) { f._pg = 'infos'; out.infos = withFonts(pageInfos(f), Object.assign({}, logoOnly, await fondFor('infos'))); };
+  const usedImgs = () => { const o = Object.fromEntries((f._used || []).map(n => ['assets/img/' + n, imgs['assets/img/' + n]])); f._used = []; return o; };
+  if (want('infos')) { f._pg = 'infos'; f._used = []; const fd = await fondFor('infos'); out.infos = withFonts(pageInfos(f), Object.assign({}, logoOnly, fd)); Object.assign(out.infos, usedImgs()); };
   if (want('galerie') && hasPh) { f._pg = 'galerie'; } if (want('galerie') && hasPh) out.galerie = withFonts(pageGalerie(f, names), imgs);
-  if (want('carte') && !heb && parseCarte(f.carteTxt).length) { f._pg = 'carte'; out.carte = withFonts(pageCarte(f), Object.assign({}, logoOnly, await fondFor('carte'))); };
+  if (want('carte') && !heb && parseCarte(f.carteTxt).length) { f._pg = 'carte'; f._used = []; const fd = await fondFor('carte'); out.carte = withFonts(pageCarte(f), Object.assign({}, logoOnly, fd)); Object.assign(out.carte, usedImgs()); };
+  if (want('video') && (p.videos || []).length) { f._pg = 'video'; const vf = {}, list = p.videos.map((v, i) => { const ext = /webm/.test(v.blob.type) ? 'webm' : /quicktime|mov/.test(v.blob.type) ? 'mov' : 'mp4', fn = `assets/video/v${i + 1}.${ext}`; vf[fn] = v.blob; return fn; }); out.video = withFonts(pageVideo(f, list), Object.assign({}, logoOnly, await fondFor('video'), vf)); }
   if (want('reservation') && f.type !== 'commerce') { f._pg = 'reservation'; } if (want('reservation') && f.type !== 'commerce') out.reservation = withFonts(pageResa(f), logoOnly);
   if (want('boutons')) out.boutons = await pageBoutons(f);
   return out;
 }
-const PAGE_NAMES = { intro: 'intro', infos: 'infos', galerie: 'galerie', carte: 'carte', reservation: 'reservation', boutons: 'boutons' };
+const PAGE_NAMES = { video: 'video', intro: 'intro', infos: 'infos', galerie: 'galerie', carte: 'carte', reservation: 'reservation', boutons: 'boutons' };

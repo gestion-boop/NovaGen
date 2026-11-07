@@ -164,7 +164,7 @@ async function browse(b) {
   return { resultats: out.slice(0, 80), total: out.length };
 }
 
-const PATCH_KEYS = ['nom', 'ville', 'type', 'slogan', 'descCourte', 'description', 'adresse', 'tel', 'email', 'site', 'facebook', 'instagram', 'booking', 'horaires', 'services', 'carteTxt', 'c1', 'c2', 'c3', 'police', 'logoForme', 'style', 'pstyle'];
+const PATCH_KEYS = ['nom', 'ville', 'type', 'slogan', 'descCourte', 'description', 'adresse', 'tel', 'email', 'site', 'facebook', 'instagram', 'booking', 'horaires', 'services', 'carteTxt', 'c1', 'c2', 'c3', 'police', 'logoForme', 'style', 'pstyle', 'avis', 'videoTitre', 'videoSur', 'videoTexte'];
 async function assist(b) {
   const hist = (b.history || []).map(m => (m.r === 'u' ? 'Utilisateur : ' : 'Assistant : ') + String(m.t || '').slice(0, 400)).join('\n');
   const prompt = `Tu es l'assistant intégré à NovaGen, l'outil de Sylvain (NovaVisio / NovaTour) qui génère les pages d'une visite virtuelle (intro, infos, galerie, carte, réservation, boutons) pour UN établissement.
@@ -179,7 +179,7 @@ Réponds UNIQUEMENT par un objet JSON valide :
 Règles :
 - patch : clés autorisées = ${PATCH_KEYS.join(', ')}. slogan, descCourte (courte, 140 car. max) et description (longue) = texte français simple ; services = tableau de textes français ; horaires = tableau de 7 textes (lundi→dimanche, ex. "12h–14h · 19h–22h" ou "Fermé") ; c1/c2/c3 = couleurs #hex ; type = restaurant | hebergement | commerce ; police = serif | sans ; logoForme = libre | rond.
 - Pour modifier la carte, renvoie la carte COMPLÈTE dans carteTxt, au format : lignes "# Catégorie" puis "Plat | prix | description" (en reprenant ce qui existe déjà et en appliquant le changement).
-- Style visuel : 4 styles existent (1 Classique, 2 Ardoise, 3 Moderne, 4 Magazine). style = pour toutes les pages ; pstyle = objet {intro|infos|galerie|carte|reservation: "1".."4"} pour une seule page. Pour une demande visuelle sur une page précise (page concernée), agis sur pstyle de cette page, sur c1/c2/c3 (couleurs : ex. « plus sombre » → c1 plus foncé) et/ou police (serif|sans), sans toucher aux autres pages.
+- Style visuel : 6 styles existent (1 Classique, 2 Ardoise, 3 Moderne, 4 Magazine ; 5 Signature = intro cinéma / Point Info fiche à icônes / carte éditoriale photo+liste ; 6 Vitrine = Point Info hero + sections, uniquement pour infos). style (1-4) = pages galerie/réservation ; pstyle = objet {intro|infos|galerie|carte|reservation: "1".."6"} pour une seule page (5 et 6 seulement pour intro, infos, carte). Champs en plus : avis (ex. « 4,6/5 · plus de 1 000 avis Google »), videoTitre, videoSur (petite étiquette), videoTexte (page Vidéo). Pour une demande visuelle sur une page précise (page concernée), agis sur pstyle de cette page, sur c1/c2/c3 (couleurs : ex. « plus sombre » → c1 plus foncé) et/ou police (serif|sans), sans toucher aux autres pages.
 - actions : seulement si la demande concerne les photos (remove_photo, set_fond). Sinon tableau vide.
 - N'invente aucune donnée (prix, horaires, téléphone). Si une info manque, demande-la dans "message" sans modifier. N'utilise la recherche web que si la demande l'exige (vérifier ou trouver une information).
 - Ne modifie que ce qui est demandé.`;
