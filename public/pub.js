@@ -157,7 +157,7 @@ async function adPrepare(p, cvW, cvH) {
 
 function bindAd() {
   const cv = $('#adf'); if (!cv || !cur) return; const ad = cur.ad = cur.ad || { style: '1', fmt: '9:16', dur: 45, offset: 0 };
-  const st = t => { const e = $('#adst2'); if (e) e.textContent = t; }, nm = () => { $('#admn').textContent = cur.adMusic ? '🎵 ' + cur.adMusic.name : 'Aucune musique choisie.'; };
+  const st = t => { ['#adst', '#adst2'].forEach(s => { const e = $(s); if (e) e.textContent = t; }); }, nm = () => { $('#admn').textContent = cur.adMusic ? '🎵 ' + cur.adMusic.name : 'Aucune musique choisie.'; };
   [['#adf', 'fmt'], ['#add', 'dur'], ['#ads', 'style'], ['#ado', 'offset']].forEach(([id, k]) => { const e = $(id); e.value = ad[k]; e.onchange = () => { ad[k] = e.value; save(); }; });
   nm(); $('#adm').onclick = () => $('#admf').click();
   $('#admf').onchange = () => { const x = $('#admf').files[0]; if (!x) return; cur.adMusic = { blob: x, name: x.name }; adCache.delete(cur.id); save(); nm(); chk(); };
@@ -174,6 +174,7 @@ function bindAd() {
     vn(); $('#advb').onclick = () => $('#advf').click(); $('#advf').onchange = () => { const x = $('#advf').files[0]; if (!x) return; cur.adVoice = { blob: x, name: x.name }; save(); vn(); chk(); };
     $('#advx').onclick = () => { cur.adVoice = null; save(); vn(); chk(); }; }
   if ($('#adkit2')) $('#adkit2').onclick = mkKit;
+  if ($('#adkit')) $('#adkit').onclick = mkKit;
 }
 
 /* dossier pour Claude : prompt complet + photos + logo + données, à déposer dans une conversation */
