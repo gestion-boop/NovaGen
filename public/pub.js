@@ -204,10 +204,23 @@ ${plats.length ? '\n### Plats et prix\n' + plats.join('\n') : ''}
   const typ = f.type === 'hebergement' ? 'hébergement' : f.type === 'commerce' ? 'commerce' : 'restaurant / bar';
   const SHOTS = { 'restaurant / bar': ['plat signature en gros plan (vapeur, texture, sauce qui coule)', 'terrasse ou façade (donne l\'ambiance et le lieu)', 'salle intérieure / comptoir / cuisine en action', 'boisson ou dessert', 'équipe ou patron souriant (humain)'], 'hébergement': ['façade ou vue d\'ensemble (on comprend tout de suite : gîte, camping, hôtel)', 'chambre / lit', 'salle de bain ou cuisine', 'piscine / terrasse / extérieur / vue', 'petit détail déco ou petit-déjeuner'], 'commerce': ['devanture', 'produit phare en gros plan', 'intérieur / rayons', 'artisan ou vendeur en action', 'détail produit'] }[typ];
   const pm = `# PROMPT — Vidéo publicitaire « ${f.nom} »
-> À lire en entier avant de commencer. Dossier joint : photos/, logo.png, musique/, fiche.json, beats.json, LIRE-MOI_brief.md (données et textes).
+> À lire en entier avant de commencer. Dossier joint : photos/, logo.png, musique/, reference/ (vidéo modèle + storyboard), fiche.json, beats.json, LIRE-MOI_brief.md (données et textes).
 
 ## 0. Ta mission
 Tu es **monteur motion designer de haut niveau** (niveau grandes chaînes YouTube / Reels / TikTok qui font des millions de vues). Réalise une publicité **${dur} s maximum**, **${fmt} (${W}×${H})**, **MP4 H.264 + AAC, 30 i/s**, pour **${f.nom}** (${typ}${f.ville ? ', ' + f.ville : ''}). Ce n'est pas un diaporama : c'est un **montage nerveux, très calé sur la musique, avec des animations de texte, des transitions « clic » et du sound design**.
+
+## 0 bis. VIDÉO DE RÉFÉRENCE À REPRODUIRE (dossier reference/)
+Dans **reference/reference_pub.mp4** (et reference/storyboard.jpg, 1 image par seconde) se trouve la pub NovaVisio qui fixe **le niveau et le style attendus**. **Regarde le storyboard avant tout** et reprends son langage, adapté à ${f.nom} :
+- **Hook paradoxal en 2 temps** (0–2 s) : un téléphone / cadre blanc arrondi avec ombre qui contient la photo, et le texte « Ceci » puis « Ceci n'est pas une photo. » → ici, trouve un hook du même type, une phrase courte qui intrigue, adaptée à ${typ} (ex. : « Ceci n'est pas une carte postale. », « Ce plat existe vraiment. », « Vous y êtes déjà. »). Un cercle-curseur tactile apparaît et le contenu **bouge** (la photo avance, glisse, réagit au toucher).
+- **Titre qui se construit mot par mot** (« La visite » → « La visite 360° » → « La visite 360° de votre logement » → « … réalisée par ») : à chaque temps fort, **un mot de plus** apparaît, le mot-clé passe en **couleur d'accent**. Jamais un titre complet d'un coup.
+- **Fausse interface** : pastille d'en-tête (« VISITE 360° »), onglets pilules (Regarder / Se déplacer / S'informer) où l'onglet actif s'allume, bouton rond de navigation en bas, curseur tactile qui clique. Pour ${f.nom}, recrée la même idée avec ses vraies photos et ses vraies informations (carte, horaires, réservation).
+- **Fiche info qui s'ouvre** (panneau sombre, titre doré, photo du produit qui apparaît) pour montrer les détails d'un élément (plat, équipement, chambre).
+- **Séquence explicative en 3 étapes** (« Comment ça marche ? ») : stepper 1-2-3 avec ronds qui se remplissent, une carte par étape (avec photo ou illustration), légende qui change à chaque étape. Pour ${f.nom} : adapte (ex. Choisir → Venir / Réserver → Savourer / Profiter) sans rien inventer.
+- **Chiffre-clé qui compte** (« 00 » → « 72 h ») : si une donnée forte existe dans les données (prix, délai, nombre de couverts, note), anime-la en compteur.
+- **Alternance** de séquences **fond clair** (blanc/menthe très pâle, texte bleu foncé) et de séquences **fond sombre** (dégradé vert-bleu profond) pour relancer l'attention ; le final est sombre.
+- **Fin** : logo animé (rond qui apparaît), nom, slogan avec un mot en couleur, « Rendez-vous sur », **bouton blanc dans lequel l'adresse web se tape lettre par lettre**, puis reste fixe 2 s.
+- Rythme de la référence : **34 s**, changement d'écran toutes les 1 à 3 s, **un seul message par écran**, textes ≤ 6 mots, typographie sans-serif géométrique très lisible, animation d'entrée **lisse (ease-out) avec léger rebond**.
+Tu **n'as pas à copier** les textes de NovaVisio : ce sont des **mécaniques d'animation** à transposer à ${f.nom}.
 
 ## 1. Le hook (0 → 2,5 s) — c'est 80 % du résultat
 - Ouvre **directement sur la meilleure image** (la plus appétissante / la plus spectaculaire), en gros plan, **sans logo, sans fondu**.
@@ -256,11 +269,11 @@ Image forte + « Venez nous voir » + **${f.nom}** + adresse (${adr || '—'}) +
 - Aucune faute d'orthographe, accents corrects.
 
 ## 9. Méthode de livraison
-1. **D'abord** : liste-moi en 5 lignes ta classification des photos et le plan (hook, ordre des scènes, transitions choisies).
+1. **D'abord** : regarde reference/storyboard.jpg et reference/reference_pub.mp4 (extrais des images avec ffmpeg si besoin), puis liste-moi en 5 lignes ta classification des photos et le plan (hook, ordre des scènes, transitions choisies).
 2. Montre-moi **3 images d'aperçu** (hook, scène, fin). J'attends mon accord.
 3. Puis génère le MP4 final et **envoie-le comme fichier**, avec la liste des photos écartées ou à refaire.
 `;
-  zip.file('PROMPT_VIDEO.md', pm); if (bts.length) zip.file('beats.json', JSON.stringify({ duree_musique_s: +mdur.toFixed(1), decalage_s: +ad.offset || 0, temps_forts_s: bts }, null, 1));
+  zip.file('PROMPT_VIDEO.md', pm); try { for (const n of ['reference_pub.mp4', 'storyboard.jpg']) { const r = await fetch('ref/' + n); if (r.ok) zip.file('reference/' + n, await r.blob()); } } catch (e) { } if (bts.length) zip.file('beats.json', JSON.stringify({ duree_musique_s: +mdur.toFixed(1), decalage_s: +ad.offset || 0, temps_forts_s: bts }, null, 1));
   zip.file('LIRE-MOI_brief.md', md); zip.file('fiche.json', JSON.stringify(Object.assign({}, f, { _logo: undefined, _fond: undefined }), null, 1));
-  return { blob: await zip.generateAsync({ type: 'blob' }), prompt: `Voici le dossier de ${f.nom}. Lis d'abord PROMPT_VIDEO.md en entier (puis LIRE-MOI_brief.md pour les données) et réalise la vidéo publicitaire demandée (${dur} s max, ${fmt}) : montage motion design nerveux, hook fort, transitions et bruitages calés sur les temps forts de beats.json, photos choisies en cohérence avec chaque texte. Utilise les photos, le logo et la musique du dossier.` };
+  return { blob: await zip.generateAsync({ type: 'blob' }), prompt: `Voici le dossier de ${f.nom}. Lis d'abord PROMPT_VIDEO.md en entier et regarde reference/storyboard.jpg (vidéo modèle à égaler) (puis LIRE-MOI_brief.md pour les données) et réalise la vidéo publicitaire demandée (${dur} s max, ${fmt}) : montage motion design nerveux, hook fort, transitions et bruitages calés sur les temps forts de beats.json, photos choisies en cohérence avec chaque texte. Utilise les photos, le logo et la musique du dossier.` };
 }
