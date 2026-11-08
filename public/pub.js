@@ -156,27 +156,15 @@ async function adPrepare(p, cvW, cvH) {
 }
 
 function bindAd() {
-  const cv = $('#adcv'); if (!cv || !cur) return; const ad = cur.ad = cur.ad || { style: '1', fmt: '9:16', dur: 45, offset: 0 }; let run = null, busy = false;
-  const st = t => { $('#adst').textContent = t; }, nm = () => { $('#admn').textContent = cur.adMusic ? '🎵 ' + cur.adMusic.name : 'Aucune musique : la vidéo sera muette.'; };
-  const fonts = async () => { try { await Promise.all(['900 40px Montserrat', '600 40px Montserrat', '700 40px "Playfair Display"'].map(x => document.fonts.load(x))); } catch (e) { } };
-  const poster = async () => { if (busy) return; await fonts(); const P = await adPrepare(cur); cv.width = P.W; cv.height = P.H; adFrame(cv.getContext('2d'), P.W, P.H, Math.min(P.plan.intro + 1.1, P.plan.D - P.plan.outro - .2), P); };
-  [['#adf', 'fmt'], ['#add', 'dur'], ['#ads', 'style'], ['#ado', 'offset']].forEach(([id, k]) => { const e = $(id); e.value = ad[k]; e.onchange = () => { ad[k] = e.value; save(); poster(); }; });
+  const cv = $('#adf'); if (!cv || !cur) return; const ad = cur.ad = cur.ad || { style: '1', fmt: '9:16', dur: 45, offset: 0 };
+  const st = t => { const e = $('#adst2'); if (e) e.textContent = t; }, nm = () => { $('#admn').textContent = cur.adMusic ? '🎵 ' + cur.adMusic.name : 'Aucune musique choisie.'; };
+  [['#adf', 'fmt'], ['#add', 'dur'], ['#ads', 'style'], ['#ado', 'offset']].forEach(([id, k]) => { const e = $(id); e.value = ad[k]; e.onchange = () => { ad[k] = e.value; save(); }; });
   nm(); $('#adm').onclick = () => $('#admf').click();
-  $('#admf').onchange = () => { const x = $('#admf').files[0]; if (!x) return; cur.adMusic = { blob: x, name: x.name }; adCache.delete(cur.id); save(); nm(); poster(); };
-  $('#admx').onclick = () => { cur.adMusic = null; adCache.delete(cur.id); save(); nm(); poster(); };
-  const tick = (t, D) => { $('#adbar').style.width = (t / D * 100) + '%'; st(`${t.toFixed(1)} s / ${D} s`); };
-  const reset = () => { run = null; busy = false; $('#adplay').textContent = '▶ Aperçu'; $('#adrec').disabled = false; $('#adbar').style.width = '0'; };
-  $('#adplay').onclick = async () => { if (run) { run.stop(); return; } busy = true; $('#adrec').disabled = true; $('#adplay').textContent = '■ Arrêter'; await fonts(); const P = await adPrepare(cur); cv.width = P.W; cv.height = P.H; run = await adRun(cv, P, false, tick); await run.done; reset(); poster(); st('Aperçu terminé.'); };
-  $('#adrec').onclick = async () => {
-    if (run) return; if (!window.MediaRecorder) { st('Ton navigateur ne sait pas enregistrer : utilise Chrome.'); return; }
-    busy = true; $('#adrec').disabled = true; $('#adplay').textContent = '■ Arrêter'; await fonts(); const P = await adPrepare(cur); cv.width = P.W; cv.height = P.H;
-    run = await adRun(cv, P, true, (t, D) => { $('#adbar').style.width = (t / D * 100) + '%'; st(`⏺ Enregistrement ${t.toFixed(0)} s / ${D} s — garde cet onglet ouvert au premier plan`); });
-    const r = await run.done; reset(); poster();
-    if (r && r.blob.size > 1000 && r.ok) { const ext = /mp4/.test(r.blob.type) ? 'mp4' : 'webm', a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = (cur.fiche.nom || 'pub').replace(/[^\w-]+/g, '_') + '_pub_' + (ad.fmt || '9:16').replace(':', 'x') + '.' + ext; document.body.appendChild(a); a.click(); a.remove(); st(`✔ Vidéo prête (${ext.toUpperCase()}, ${(r.blob.size / 1048576).toFixed(1)} Mo) : regarde ton dossier Téléchargements.`); } else st('Enregistrement interrompu : relance l\'export.');
-  };
+  $('#admf').onchange = () => { const x = $('#admf').files[0]; if (!x) return; cur.adMusic = { blob: x, name: x.name }; adCache.delete(cur.id); save(); nm(); chk(); };
+  $('#admx').onclick = () => { cur.adMusic = null; adCache.delete(cur.id); save(); nm(); chk(); };
   const chk = () => { const el = $('#adchk'); if (!el) return; const f = cur.fiche || {}, np = (cur.photos || []).length, nc = (parseCarte(f.carteTxt) || []).reduce((n, c) => n + c.items.length, 0), L = [[np >= 5, np + ' photo' + (np > 1 ? 's' : ''), np < 5 ? 'idéal : 6 à 12, variées (plat, terrasse, salle, équipe)' : ''], [!!cur.logo, 'Logo', ''], [!!cur.adMusic, 'Musique', 'sinon vidéo muette'], [!!cur.adVoice, 'Voix off', 'facultatif : génère le texte, fais-le lire par ElevenLabs, importe le MP3'], [!!(f.slogan || f.descCourte || f.description), 'Accroche / description', ''], [!!(f.adresse && f.tel), 'Adresse + téléphone', 'pour la fin de la vidéo'], [f.type === 'pro' ? (f.services || []).length > 0 : nc > 0 || f.type === 'hebergement', f.type === 'pro' ? (f.services || []).length + ' prestations' : f.type === 'hebergement' ? 'Hébergement' : nc + ' plats', '']]; el.innerHTML = L.map(([ok, t, h]) => `<span class="chip ${ok ? 'ok' : 'ko'}" title="${h}">${ok ? '✔' : '○'} ${t}${!ok && h ? ' — <i>' + h + '</i>' : ''}</span>`).join(''); };
   chk(); if ($('#adnote')) { $('#adnote').value = ad.note || ''; $('#adnote').oninput = () => { ad.note = $('#adnote').value; save(); }; }
-  const mkKit = async () => { const s2 = $('#adst2'); st('Préparation du dossier…'); if (s2) s2.textContent = 'Préparation…'; const k = await adKit(cur), a = document.createElement('a'); a.href = URL.createObjectURL(k.blob); a.download = 'Dossier_pub_' + (cur.fiche.nom || 'etablissement').replace(/[^\w-]+/g, '_') + '.zip'; document.body.appendChild(a); a.click(); a.remove(); let m; try { await navigator.clipboard.writeText(k.prompt); m = '✔ ZIP téléchargé et message copié. Ouvre Claude, dépose le ZIP, colle le message (Cmd+V).'; } catch (e) { m = '✔ ZIP téléchargé. Dépose-le dans Claude avec : ' + k.prompt; } st(m); if (s2) s2.textContent = m; };
+  const mkKit = async () => { const s2 = $('#adst2'); st('Préparation du dossier…'); const k = await adKit(cur), a = document.createElement('a'); a.href = URL.createObjectURL(k.blob); a.download = 'Dossier_pub_' + (cur.fiche.nom || 'etablissement').replace(/[^\w-]+/g, '_') + '.zip'; document.body.appendChild(a); a.click(); a.remove(); let m; try { await navigator.clipboard.writeText(k.prompt); m = '✔ ZIP téléchargé et message copié. Ouvre Claude, dépose le ZIP, colle le message (Cmd+V).'; } catch (e) { m = '✔ ZIP téléchargé. Dépose-le dans Claude avec : ' + k.prompt; } st(m); if (s2) s2.textContent = m; };
 
   { const sc = $('#adscript'), cnt = () => { const w = (sc.value.trim().match(/\S+/g) || []).length; $('#adwc').textContent = w ? '≈ ' + w + ' mots · ' + Math.round(w / 2.4) + ' s de voix' : ''; };
     sc.value = ad.script || ''; cnt(); sc.oninput = () => { ad.script = sc.value; cnt(); save(); };
@@ -186,8 +174,6 @@ function bindAd() {
     vn(); $('#advb').onclick = () => $('#advf').click(); $('#advf').onchange = () => { const x = $('#advf').files[0]; if (!x) return; cur.adVoice = { blob: x, name: x.name }; save(); vn(); chk(); };
     $('#advx').onclick = () => { cur.adVoice = null; save(); vn(); chk(); }; }
   if ($('#adkit2')) $('#adkit2').onclick = mkKit;
-  $('#adkit').onclick = mkKit;
-  poster();
 }
 
 /* dossier pour Claude : prompt complet + photos + logo + données, à déposer dans une conversation */
