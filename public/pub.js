@@ -258,6 +258,12 @@ Dans **reference/reference_pub.mp4** (et reference/storyboard.jpg, 1 image par s
 - Rythme de la référence : **34 s**, changement d'écran toutes les 1 à 3 s, **un seul message par écran**, textes ≤ 6 mots, typographie sans-serif géométrique très lisible, animation d'entrée **lisse (ease-out) avec léger rebond**.
 Tu **n'as pas à copier** les textes de NovaVisio : ce sont des **mécaniques d'animation** à transposer à ${f.nom}.
 
+## 0 ter. STRUCTURE EN 3 ACTES (obligatoire, niveau grand designer motion)
+1. **ACTE 1 — HOOK ACCROCHEUR D'ENTRÉE (0 → 5 s)** : 2 à 3 plans très courts (1 à 2 s) qui montrent le problème / l'envie, chacun avec un mot-choc ou une question. Le spectateur doit être happé dès la première image et comprendre le sujet en moins de 2 s.
+2. **ACTE 2 — NOTRE SOLUTION (≈ 5 → 80 % de la durée)** : on présente **la solution apportée par ${f.nom}** (ses prestations / sa carte / ses atouts réels), un message par écran, avec des animations propres (texte mot par mot, cartes qui glissent, compteurs, pictos).
+3. **ACTE 3 — NOTRE CONTACT (dernières secondes)** : nom, adresse, **téléphone**, site / réseaux sociaux, bouton « ${cta} », curseur de souris qui pointe et clique sur le bouton, puis signature NovaVisio.
+Le montage doit être digne d'un **grand motion designer** : hiérarchie typographique forte, grille propre, transitions maîtrisées, rythme tenu du début à la fin.
+
 ## 1. Le hook (0 → 2,5 s) — c'est 80 % du résultat
 - Ouvre **directement sur la meilleure image** (la plus appétissante / la plus spectaculaire), en gros plan, **sans logo, sans fondu**.
 - Un **mot-choc ou une question** en gros (≤ 4 mots) qui dit le genre d'établissement ET donne envie. Ex. : ${isPro ? '« BESOIN D\'UN PRO À ' + (f.ville || 'VOTRE VILLE').toUpperCase() + ' ? » ou une question sur le problème que le client rencontre (à tirer des prestations, sans rien inventer)' : typ === 'restaurant / bar' ? '« ON A TROUVÉ LA PÉPITE DE ' + (f.ville || 'LA VILLE').toUpperCase() + ' »' : typ === 'hébergement' ? '« VOTRE ÉVASION COMMENCE ICI »' : '« À DÉCOUVRIR ABSOLUMENT »'} (adapte-le aux données réelles, n'invente rien).
@@ -316,7 +322,14 @@ Image forte + « ${isPro ? 'Contactez-nous' : 'Venez nous voir'} » + **${f.nom}
 ## 7 bis. SIGNATURE OBLIGATOIRE — « Publicité créée par NovaVisio »
 En **tout bas de l'écran de fin** (zone 1 780–1 840 px en 9:16, sous le bouton et l'adresse), ajoute la ligne **« Publicité créée par » + le logo rond NovaVisio (reference/logo_novavisio.png, ≈ 55 px) + « NovaVisio »**, discrète mais lisible (texte crème, « NovaVisio » en blanc gras), qui apparaît en fondu 1,5 s avant la fin et reste jusqu'au dernier plan. Ne la mets ni au début ni au milieu de la vidéo.
 
-## 7 ter. PAS DE PRIX\nN'affiche et ne prononce **aucun prix** dans la vidéo (ni étiquette, ni badge, ni « à 9,90 € »). Cite les plats par leur nom seulement.\n\n## 8. Qualité
+## 7 ter. PAS DE PRIX\nN'affiche et ne prononce **aucun prix** dans la vidéo (ni étiquette, ni badge, ni « à 9,90 € »). Cite les plats par leur nom seulement.\n\n## 7 quater. NETTETÉ ET SOBRIÉTÉ (retours clients)
+- **Textes 100 % nets** : pas de flou, pas de doublon ni d'ombre décalée, pas de trame fantôme derrière les lettres. Ombre douce uniquement sur les textes posés sur photo.
+- **Aucun tremblement** : pas de shake de caméra ni de pulsation de l'image ; seuls les zooms lents et réguliers sont autorisés.
+- **Peu d'effets spéciaux** : pas de flash blanc, de glitch ni de traînées. Transitions = coupes nettes ou glissements simples.
+- **Sons** : de temps en temps seulement, des **dings légers et doux** (sinus court, volume bas) sur les moments clés ; jamais de clochettes ni de sons aigus.
+- **Dernier écran** : un **curseur de souris (flèche blanche)** glisse vers le bouton / l'icône web, **clique** (petit onde + clic discret).
+
+## 8. Qualité
 - Texte **lisible sur mobile** (≥ 5 % de la hauteur), contraste suffisant (voile ou ombre), zone de sécurité de 8 % en haut et en bas (interfaces Reels / TikTok).
 - Couleurs de la charte : ${f.c1 || ''} / ${f.c2 || ''} / ${f.c3 || ''}. Police : ${ad.style == 2 ? 'Playfair Display' : 'Montserrat (gras)'}.
 - Aucune faute d'orthographe, accents corrects.
