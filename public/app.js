@@ -237,6 +237,7 @@ async function importCarte(list, btn) {
 const BAR_LAB = { menu: 'Carte', reserver: 'Réserver', photos: 'Photos', appeler: 'Appeler', infos: 'Infos', localisation: 'Plan', contact: 'Contact', plan: 'Plan', panoramas: 'Panoramas', video: 'Vidéo', son: 'Son', pleinecran: 'Plein écran', vr: 'VR', maison: 'Retour', burger: 'Plus', lit: 'Chambres', wifi: 'Wi-Fi', cafe: 'Café', vin: 'Vins', piscine: 'Piscine', tente: 'Camping', gateau: 'Pâtisserie', velo: 'Vélo', play: 'Lecture' };
 const BAR_PG = [['intro', 'Intro'], ['infos', 'Point Info'], ['galerie', 'Galerie'], ['carte', 'Carte'], ['reservation', 'Réservation'], ['video', 'Vidéo']];
 /* ---------- réglages mémorisés par type d'établissement ---------- */
+const vm = v => { const m = String(v).match(/https?:\/\/([a-z0-9-]+)\.vercel\.app/i) || String(v).match(/vercel\.com\/[^\/\s?#]+\/([a-z0-9][a-z0-9-_.]*)/i); return m ? [m[0], m[1]] : null; };
 const getProfiles = () => { try { return JSON.parse(localStorage.getItem('ng_profiles')) || {}; } catch (e) { return {}; } };
 const TYPE_LAB = { restaurant: 'restaurant / bar', hebergement: 'hébergement', commerce: 'commerce' };
 function saveProfile() {
@@ -320,8 +321,9 @@ function renderBar() {
   /* glisser-déposer des boutons directement sur la barre : le lien suit le bouton */
   let dragI = null; el.querySelectorAll('.bsc .bb').forEach(bt => { bt.draggable = true; bt.ondragstart = e => { dragI = +bt.dataset.bi; e.dataTransfer.effectAllowed = 'move'; }; bt.ondragover = e => e.preventDefault(); bt.ondrop = e => { e.preventDefault(); const j = +bt.dataset.bi; if (dragI == null || dragI === j) return; const L = pages[barView], [m] = L.splice(dragI, 1); L.splice(j, 0, m); dragI = null; save2(); }; });
   el.querySelectorAll('[data-bt]').forEach(x => x.onchange = () => { const [L, i] = at(x.dataset.bt); L[i].t = x.value; save2(); });
-  el.querySelectorAll('[data-bp]').forEach(x => x.onchange = () => { const [L, i] = at(x.dataset.bp), k = L[i].t.slice(5), v = x.value.trim(), m = v.match(/https?:\/\/([a-z0-9-]+)\.vercel\.app/i); cur.vp = cur.vp || {}; cur.pub = cur.pub || {};
-    if (!v) { delete cur.pub[k]; delete cur.vp[k]; } else if (m) { const nm = m[1].toLowerCase(); cur.vp[k] = nm; cur.pub[k] = { hash: '', at: Date.now(), project: nm, url: 'https://' + nm + '.vercel.app' }; } else { x.style.borderColor = '#c0392b'; return; }
+  el.querySelectorAll('[data-bp]').forEach(x => x.onpaste = () => setTimeout(() => x.onchange(), 60));
+  el.querySelectorAll('[data-bp]').forEach(x => x.onchange = () => { const [L, i] = at(x.dataset.bp), k = L[i].t.slice(5), v = x.value.trim(), m = vm(v); cur.vp = cur.vp || {}; cur.pub = cur.pub || {};
+    if (!v) { delete cur.pub[k]; delete cur.vp[k]; } else if (m) { const nm = m[1].toLowerCase(); cur.vp[k] = nm; cur.pub[k] = { hash: '', at: Date.now(), project: nm, url: 'https://' + nm + '.vercel.app' }; } else { x.style.borderColor = '#c0392b'; x.title = 'Lien non reconnu : colle une adresse du type https://nom.vercel.app'; return; }
     save2(); if (typeof renderOut === 'function' && $('#out')) renderOut(); });
   el.querySelectorAll('[data-bu]').forEach(x => x.onchange = () => { const [L, i] = at(x.dataset.bu); L[i].u = x.value.trim(); save2(false); });
   const mv = (v, d) => { const [L, i] = at(v), j = i + d; if (j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; save2(); };
@@ -428,7 +430,7 @@ function renderOut() {
   const vst = k => { const el = $('#vs-' + k); if (!el) return; const n = projOf(k), pr = (vproj || []).find(p => p.name === n); el.innerHTML = vproj === null ? '' : vperr ? `<span style="color:#8a5a00">⚠ Liste des projets indisponible (${esc(vperr)})</span>` : pr ? `<span style="color:#1b6b37">✓ Projet existant : ${esc(pr.domain)}</span>` : '<span style="color:#a1271b">⚠ Ce projet n\'existe pas : un NOUVEAU projet sera créé</span>'; };
   const lnk = k => { const el = $('#lk-' + k); if (!el) return; const n = projOf(k), u = (cur.pub && cur.pub[k] && cur.pub[k].project === n && cur.pub[k].url) || (n && cur.pub && cur.pub[k] ? 'https://' + n + '.vercel.app' : '');
     el.innerHTML = `🔗 <input class="vu" value="${esc(u)}" placeholder="Coller ici le lien Vercel déjà déployé (https://….vercel.app)" style="flex:1;min-width:220px;padding:6px 9px;font-size:12px;margin:0">${u ? `<a href="${esc(u)}" target="_blank" style="color:var(--b1);font-weight:700;text-decoration:none">↗ Ouvrir</a><button class="b o s" data-cp="${k}" style="padding:2px 8px;font-size:11px">Copier</button>` : ''}`;
-    const inp = el.querySelector('.vu'); inp.onchange = () => { const v = inp.value.trim(), m = v.match(/https?:\/\/([a-z0-9-]+)\.vercel\.app/i); cur.vp = cur.vp || {}; cur.pub = cur.pub || {};
+    const inp = el.querySelector('.vu'); inp.onpaste = () => setTimeout(() => inp.onchange(), 60); inp.onchange = () => { const v = inp.value.trim(), m = vm(v); cur.vp = cur.vp || {}; cur.pub = cur.pub || {};
       if (!v) { delete cur.pub[k]; delete cur.vp[k]; } else if (m) { const nm = m[1].toLowerCase(); cur.vp[k] = nm; cur.pub[k] = { hash: '', at: Date.now(), project: nm, url: 'https://' + nm + '.vercel.app' }; } else { inp.style.borderColor = '#c0392b'; return; }
       save(); const vi = o.querySelector('[data-vp="' + k + '"]'); if (vi) vi.value = projOf(k); lnk(k); renderBar(); };
     const cp = el.querySelector('[data-cp]'); if (cp) cp.onclick = async e => { try { await navigator.clipboard.writeText(u); e.target.textContent = '✔ Copié'; setTimeout(() => e.target.textContent = 'Copier', 1500); } catch (x) { prompt('Copie ce lien :', u); } }; };
