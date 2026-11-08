@@ -129,7 +129,7 @@ Structure :
 2. DÉCOUVERTE : le nom et ce que c'est, en une phrase vivante.
 3. DÉMONSTRATION : 2 ou 3 atouts concrets et sensoriels tirés UNIQUEMENT des données (plats ou spécialités, ambiance, terrasse, équipements, savoir-faire…), en vraies phrases.
 4. DIFFÉRENCIATION : pourquoi venir ici plutôt qu'ailleurs, sans superlatif creux.
-5. APPEL À L'ACTION unique et clair (réserver par téléphone, ou sur le site, ou venir à l'adresse)${b.visite ? ", puis UNE phrase qui invite à découvrir le lieu en visite immersive sur app.novavisio.fr (écris exactement « app.novavisio.fr »)" : ''}, puis signature courte : le nom et la ville.
+5. APPEL À L'ACTION unique et clair (réserver par téléphone, ou sur le site, ou venir à l'adresse), puis signature courte : le nom et la ville.${b.visite ? "\n6. TOUT À LA FIN, en dernier paragraphe : une phrase qui invite à découvrir le lieu en visite immersive sur app.novavisio.fr (écris exactement « app.novavisio.fr »)." : ''}
 
 Règles :${b.visite ? '' : ' ne parle jamais de visite virtuelle, immersive ou 360° ;'} environ ${words} mots (±10 %) ; phrases courtes, faciles à dire ; jamais de listes de mots séparés par des virgules ni de mots avec majuscule au milieu de phrase ; aucune répétition ; AUCUN prix ; n'invente aucun fait absent des données ; écris le téléphone en chiffres groupés par deux ; pas de balises, pas de titres, pas d'emoji, pas de guillemets. Une phrase ou deux par paragraphe, paragraphes séparés par une ligne vide. Réponds UNIQUEMENT avec le texte.
 
