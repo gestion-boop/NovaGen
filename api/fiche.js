@@ -46,7 +46,7 @@ const textOf = j => (j.content || []).filter(b => b.type === 'text').map(b => b.
 function jsonOf(s) { const a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a < 0 || b < 0) throw new Error('Réponse non exploitable'); return JSON.parse(s.slice(a, b + 1)); }
 
 const SCHEMA = `{
- "type": "restaurant | hebergement | commerce",
+ "type": "restaurant | hebergement | commerce | pro (pro = professionnel ou entreprise de services sans lieu à visiter : expert, cabinet, artisan, agence, courtier… ; dans ce cas mets ses prestations dans services, pas de carte, adresse = adresse du bureau, horaires = horaires d'ouverture)",
  "nom": "", "ville": "",
  "slogan": {"fr":"court, 3 à 6 mots, ex. Burgers · Cassolettes · Narbonne","es":"","de":"","en":""},
  "descCourte": {"fr":"description COURTE : 1 à 2 phrases, 140 caractères maximum, pour les vignettes et l'aperçu NovaTour","es":"","de":"","en":""},

@@ -11,6 +11,7 @@ function adTexts(f) {
   const o = [], sl = adTxt(f.slogan), d = adTxt(f.descCourte);
   if (sl) o.push({ big: sl });
   if (d) o.push({ big: d.length > 78 ? d.slice(0, 75) + '…' : d });
+  if (f.type === 'pro') { (f.services || []).map(adTxt).filter(Boolean).slice(0, 5).forEach(s => o.push({ big: s, tag: 'Nos prestations' })); return o; }
   const items = parseCarte(f.carteTxt).flatMap(c => c.items).filter(i => i.nom && i.prix), pick = [], step = Math.max(1, Math.floor(items.length / 4));
   for (let i = 0; i < items.length && pick.length < 4; i += step) pick.push(items[i]);
   pick.forEach(i => o.push({ big: i.nom, small: i.prix, tag: 'À la carte' }));
@@ -26,6 +27,7 @@ function adScript(f, dur) {
   P.push(typ === 'hebergement' ? `Envie d'une vraie parenthèse${ville ? ' à ' + ville : ''} ?` : typ === 'commerce' ? `Vous connaissez ${nom} ?` : `Vous cherchez la bonne adresse${ville ? ' à ' + ville : ''} ?`);
   P.push(L(nom + (sl ? ', ' + sl.charAt(0).toLowerCase() + sl.slice(1) : d ? ', ' + d.charAt(0).toLowerCase() + d.slice(1) : '')));
   if (sl && d) P.push(L(d));
+  if (typ === 'pro') { const sv = (f.services || []).map(adTxt).filter(Boolean).slice(0, 5).map(adSpeak), adr = adAdr(f), tel = String(f.tel || '').replace(/^\+33\s*/, '0').replace(/\s+/g, ' ').trim(), P2 = [`Vous cherchez un professionnel de confiance${ville ? ' à ' + ville : ''} ?`, L(nom + (sl ? ', ' + sl.charAt(0).toLowerCase() + sl.slice(1) : '')), d && L(d), sv.length && L('Nos prestations : ' + sv.join(', ')), tel && L('Contactez-nous au ' + tel), adr && L('Nous sommes à ' + adr.replace(/,?\s*\d{5}\s*/, ', ')), L(nom + (ville ? ', ' + ville : ''))].filter(Boolean); return P2.join('\n\n'); }
   const items = parseCarte(f.carteTxt).flatMap(c => c.items).filter(i => i.nom && i.prix), pick = [], step = Math.max(1, Math.floor(items.length / 3));
   for (let i = 0; i < items.length && pick.length < 3; i += step) pick.push(items[i]);
   if (pick.length) P.push(L('Au menu : ' + pick.map(i => adSpeak(i.nom) + ', à ' + adSpeak(i.prix)).join(' ... ')));
@@ -84,10 +86,10 @@ function adFrame(c, W, H, t, P) {
   } else if (t >= plan.D - plan.outro) {
     const k = (t - (plan.D - plan.outro)) / plan.outro, last = A.photos[A.photos.length - 1];
     bgPhoto(last, k, st === 3 ? '246,243,238,.84' : '10,10,14,.66'); const ink = st === 3 ? c1 : '#fff', cx = W / 2, s0 = plan.D - plan.outro, y0 = H * (portrait ? .32 : .28);
-    const A1 = adOut((t - s0 - .2) / .5); text(st === 2 ? 'À très bientôt' : 'Venez nous voir', cx, y0 + (1 - A1) * 30 * u, 44 * u, st === 3 ? c2 : c3, 'center', A1);
+    const A1 = adOut((t - s0 - .2) / .5); text(st === 2 ? 'À très bientôt' : f.type === 'pro' ? 'Contactez-nous' : 'Venez nous voir', cx, y0 + (1 - A1) * 30 * u, 44 * u, st === 3 ? c2 : c3, 'center', A1);
     const A2 = adOut((t - s0 - .6) / .6); const hh = text(f.nom || '', cx, y0 + 110 * u + (1 - A2) * 40 * u, (portrait ? 98 : 88) * u, ink, 'center', A2);
     const adr = adAdr(f), A3 = adOut((t - s0 - 1.1) / .6); if (adr) text(adr, cx, y0 + 110 * u + hh + 30 * u, 44 * u, ink, 'center', A3 * .92, W * .84);
-    if (f.tel) { const A4 = adOut((t - s0 - 1.6) / .5), pulse = 1 + .03 * Math.sin(t * 6), bw = Math.min(W * .78, 760 * u), bh = 120 * u, by = H * (portrait ? .66 : .72); c.save(); c.globalAlpha = A4; c.translate(cx, by + bh / 2); c.scale(pulse, pulse); c.fillStyle = c2; c.shadowColor = 'rgba(0,0,0,.4)'; c.shadowBlur = 30 * u; adRR(c, -bw / 2, -bh / 2, bw, bh, bh / 2); c.fill(); c.shadowBlur = 0; c.fillStyle = '#fff'; c.textAlign = 'center'; c.font = `${wt} ${46 * u}px ${FT}`; c.fillText((f.type === 'hebergement' ? 'Réservez · ' : 'Réservez · ') + f.tel, 0, 16 * u); c.restore(); }
+    if (f.tel) { const A4 = adOut((t - s0 - 1.6) / .5), pulse = 1 + .03 * Math.sin(t * 6), bw = Math.min(W * .78, 760 * u), bh = 120 * u, by = H * (portrait ? .66 : .72); c.save(); c.globalAlpha = A4; c.translate(cx, by + bh / 2); c.scale(pulse, pulse); c.fillStyle = c2; c.shadowColor = 'rgba(0,0,0,.4)'; c.shadowBlur = 30 * u; adRR(c, -bw / 2, -bh / 2, bw, bh, bh / 2); c.fill(); c.shadowBlur = 0; c.fillStyle = '#fff'; c.textAlign = 'center'; c.font = `${wt} ${46 * u}px ${FT}`; c.fillText((f.type === 'hebergement' ? (f.type === 'pro' ? 'Contact · ' : 'Réservez · ') : (f.type === 'pro' ? 'Contact · ' : 'Réservez · ')) + f.tel, 0, 16 * u); c.restore(); }
     const h = (String(f.instagram || '').match(/instagram\.com\/([^/?#]+)/i) || [])[1]; if (h) text('@' + h, cx, H * (portrait ? .66 : .72) + 220 * u, 40 * u, ink, 'center', adOut((t - s0 - 2) / .5) * .85);
   } else {
     const sc = plan.scenes.find(s => t >= s.a && t < s.b) || plan.scenes[plan.scenes.length - 1], k = (t - sc.a) / (sc.b - sc.a), tin = t - sc.a, prev = plan.scenes[sc.i - 1];
@@ -172,7 +174,7 @@ function bindAd() {
     const r = await run.done; reset(); poster();
     if (r && r.blob.size > 1000 && r.ok) { const ext = /mp4/.test(r.blob.type) ? 'mp4' : 'webm', a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = (cur.fiche.nom || 'pub').replace(/[^\w-]+/g, '_') + '_pub_' + (ad.fmt || '9:16').replace(':', 'x') + '.' + ext; document.body.appendChild(a); a.click(); a.remove(); st(`✔ Vidéo prête (${ext.toUpperCase()}, ${(r.blob.size / 1048576).toFixed(1)} Mo) : regarde ton dossier Téléchargements.`); } else st('Enregistrement interrompu : relance l\'export.');
   };
-  const chk = () => { const el = $('#adchk'); if (!el) return; const f = cur.fiche || {}, np = (cur.photos || []).length, nc = (parseCarte(f.carteTxt) || []).reduce((n, c) => n + c.items.length, 0), L = [[np >= 5, np + ' photo' + (np > 1 ? 's' : ''), np < 5 ? 'idéal : 6 à 12, variées (plat, terrasse, salle, équipe)' : ''], [!!cur.logo, 'Logo', ''], [!!cur.adMusic, 'Musique', 'sinon vidéo muette'], [!!cur.adVoice, 'Voix off', 'facultatif : génère le texte, fais-le lire par ElevenLabs, importe le MP3'], [!!(f.slogan || f.descCourte || f.description), 'Accroche / description', ''], [!!(f.adresse && f.tel), 'Adresse + téléphone', 'pour la fin de la vidéo'], [nc > 0 || f.type === 'hebergement', f.type === 'hebergement' ? 'Hébergement' : nc + ' plats', '']]; el.innerHTML = L.map(([ok, t, h]) => `<span class="chip ${ok ? 'ok' : 'ko'}" title="${h}">${ok ? '✔' : '○'} ${t}${!ok && h ? ' — <i>' + h + '</i>' : ''}</span>`).join(''); };
+  const chk = () => { const el = $('#adchk'); if (!el) return; const f = cur.fiche || {}, np = (cur.photos || []).length, nc = (parseCarte(f.carteTxt) || []).reduce((n, c) => n + c.items.length, 0), L = [[np >= 5, np + ' photo' + (np > 1 ? 's' : ''), np < 5 ? 'idéal : 6 à 12, variées (plat, terrasse, salle, équipe)' : ''], [!!cur.logo, 'Logo', ''], [!!cur.adMusic, 'Musique', 'sinon vidéo muette'], [!!cur.adVoice, 'Voix off', 'facultatif : génère le texte, fais-le lire par ElevenLabs, importe le MP3'], [!!(f.slogan || f.descCourte || f.description), 'Accroche / description', ''], [!!(f.adresse && f.tel), 'Adresse + téléphone', 'pour la fin de la vidéo'], [f.type === 'pro' ? (f.services || []).length > 0 : nc > 0 || f.type === 'hebergement', f.type === 'pro' ? (f.services || []).length + ' prestations' : f.type === 'hebergement' ? 'Hébergement' : nc + ' plats', '']]; el.innerHTML = L.map(([ok, t, h]) => `<span class="chip ${ok ? 'ok' : 'ko'}" title="${h}">${ok ? '✔' : '○'} ${t}${!ok && h ? ' — <i>' + h + '</i>' : ''}</span>`).join(''); };
   chk(); if ($('#adnote')) { $('#adnote').value = ad.note || ''; $('#adnote').oninput = () => { ad.note = $('#adnote').value; save(); }; }
   const mkKit = async () => { const s2 = $('#adst2'); st('Préparation du dossier…'); if (s2) s2.textContent = 'Préparation…'; const k = await adKit(cur), a = document.createElement('a'); a.href = URL.createObjectURL(k.blob); a.download = 'Dossier_pub_' + (cur.fiche.nom || 'etablissement').replace(/[^\w-]+/g, '_') + '.zip'; document.body.appendChild(a); a.click(); a.remove(); let m; try { await navigator.clipboard.writeText(k.prompt); m = '✔ ZIP téléchargé et message copié. Ouvre Claude, dépose le ZIP, colle le message (Cmd+V).'; } catch (e) { m = '✔ ZIP téléchargé. Dépose-le dans Claude avec : ' + k.prompt; } st(m); if (s2) s2.textContent = m; };
 
@@ -215,7 +217,7 @@ ${p.adMusic ? `Utilise le fichier du dossier « musique/ ». Coupe-le à ${dur} 
 1. **Intro (≈ ${Math.round(Math.min(4.2, Math.max(2.6, dur * .12)))} s)** : logo (logo.png) qui apparaît en rond blanc, puis le nom « ${f.nom} »${adTxt(f.slogan) ? ` et l'accroche « ${adTxt(f.slogan)} »` : ''}.
 2. **Scènes photos** : toutes les photos du dossier « photos/ » dans l'ordre, en mouvement lent (Ken Burns), avec par-dessus ces textes (un par scène, dans l'ordre). Compte environ 3 secondes par scène : garde les premiers textes si la durée est courte :
 ${tx.map((t, i) => `   - Scène ${i + 1} : ${t.tag ? t.tag + ' — ' : ''}${t.big}${t.small ? ' — ' + t.small : ''}`).join('\n') || '   - (aucun texte : photos seules)'}
-3. **Fin (≈ ${Math.round(Math.min(9, Math.max(4, dur * .2)))} s)** : « Venez nous voir », nom, adresse, bouton « Réservez · ${f.tel || ''} »${ig ? `, compte @${ig}` : ''}.
+3. **Fin (≈ ${Math.round(Math.min(9, Math.max(4, dur * .2)))} s)** : « ${f.type === 'pro' ? 'Contactez-nous' : 'Venez nous voir'} », nom, adresse, bouton « ${f.type === 'pro' ? 'Contact' : 'Réservez'} · ${f.tel || ''} »${ig ? `, compte @${ig}` : ''}.
 
 ## Charte
 - Couleur sombre : ${f.c1 || ''} · Accent : ${f.c2 || ''} · Or / survol : ${f.c3 || ''}
@@ -235,8 +237,8 @@ ${plats.length ? '\n### Plats et prix\n' + plats.join('\n') : ''}
 3. Si une photo est floue, trop sombre ou coupée, dis-le-moi au lieu de l'utiliser telle quelle.
 `;
 
-  const typ = f.type === 'hebergement' ? 'hébergement' : f.type === 'commerce' ? 'commerce' : 'restaurant / bar';
-  const SHOTS = { 'restaurant / bar': ['plat signature en gros plan (vapeur, texture, sauce qui coule)', 'terrasse ou façade (donne l\'ambiance et le lieu)', 'salle intérieure / comptoir / cuisine en action', 'boisson ou dessert', 'équipe ou patron souriant (humain)'], 'hébergement': ['façade ou vue d\'ensemble (on comprend tout de suite : gîte, camping, hôtel)', 'chambre / lit', 'salle de bain ou cuisine', 'piscine / terrasse / extérieur / vue', 'petit détail déco ou petit-déjeuner'], 'commerce': ['devanture', 'produit phare en gros plan', 'intérieur / rayons', 'artisan ou vendeur en action', 'détail produit'] }[typ];
+  const typ = f.type === 'hebergement' ? 'hébergement' : f.type === 'commerce' ? 'commerce' : f.type === 'pro' ? 'professionnel' : 'restaurant / bar', isPro = typ === 'professionnel', cta = isPro ? 'Contact' : 'Réservez';
+  const SHOTS = { 'professionnel': ['portrait du dirigeant ou de l\'équipe (visage, sourire, regard caméra)', 'le professionnel en action (sur le terrain, au bureau, avec un client)', 'les outils / le matériel / un document ou résultat concret', 'le lieu (bureau, façade, enseigne) pour ancrer localement', 'un détail qui inspire confiance (certification, label, avis client si fourni)'], 'restaurant / bar': ['plat signature en gros plan (vapeur, texture, sauce qui coule)', 'terrasse ou façade (donne l\'ambiance et le lieu)', 'salle intérieure / comptoir / cuisine en action', 'boisson ou dessert', 'équipe ou patron souriant (humain)'], 'hébergement': ['façade ou vue d\'ensemble (on comprend tout de suite : gîte, camping, hôtel)', 'chambre / lit', 'salle de bain ou cuisine', 'piscine / terrasse / extérieur / vue', 'petit détail déco ou petit-déjeuner'], 'commerce': ['devanture', 'produit phare en gros plan', 'intérieur / rayons', 'artisan ou vendeur en action', 'détail produit'] }[typ];
   const pm = `# PROMPT — Vidéo publicitaire « ${f.nom} »
 > À lire en entier avant de commencer. Dossier joint : photos/, logo.png, musique/, voix/ (si fournie), reference/ (vidéo modèle, storyboard, logo NovaVisio), fiche.json, beats.json, LIRE-MOI_brief.md (données et textes).
 
@@ -258,7 +260,7 @@ Tu **n'as pas à copier** les textes de NovaVisio : ce sont des **mécaniques d'
 
 ## 1. Le hook (0 → 2,5 s) — c'est 80 % du résultat
 - Ouvre **directement sur la meilleure image** (la plus appétissante / la plus spectaculaire), en gros plan, **sans logo, sans fondu**.
-- Un **mot-choc ou une question** en gros (≤ 4 mots) qui dit le genre d'établissement ET donne envie. Ex. : ${typ === 'restaurant / bar' ? '« ON A TROUVÉ LA PÉPITE DE ' + (f.ville || 'LA VILLE').toUpperCase() + ' »' : typ === 'hébergement' ? '« VOTRE ÉVASION COMMENCE ICI »' : '« À DÉCOUVRIR ABSOLUMENT »'} (adapte-le aux données réelles, n'invente rien).
+- Un **mot-choc ou une question** en gros (≤ 4 mots) qui dit le genre d'établissement ET donne envie. Ex. : ${isPro ? '« BESOIN D\'UN PRO À ' + (f.ville || 'VOTRE VILLE').toUpperCase() + ' ? » ou une question sur le problème que le client rencontre (à tirer des prestations, sans rien inventer)' : typ === 'restaurant / bar' ? '« ON A TROUVÉ LA PÉPITE DE ' + (f.ville || 'LA VILLE').toUpperCase() + ' »' : typ === 'hébergement' ? '« VOTRE ÉVASION COMMENCE ICI »' : '« À DÉCOUVRIR ABSOLUMENT »'} (adapte-le aux données réelles, n'invente rien).
 - Premier mouvement dès la **première image** (zoom punch-in rapide, shake léger), **impact sonore** (whoosh + hit) calé sur le premier temps fort.
 - Le spectateur doit comprendre en **moins de 2 secondes** à quel type de lieu il a affaire.
 
@@ -268,7 +270,13 @@ Tu **n'as pas à copier** les textes de NovaVisio : ce sont des **mécaniques d'
 3. Ordre conseillé pour ce genre d'établissement (${typ}) : ${SHOTS.map((x, i) => (i + 1) + '. ' + x).join(' ; ')}.
 4. **Cadre pour mobile (9:16)** : recadre sur le sujet (pas sur le vide), garde le texte hors du sujet. Jamais d'étirement.
 5. **Signale-moi** toute photo floue, sombre, mal cadrée ou hors sujet, et indique ce qui manque (ex. « pas de photo de terrasse »). Ne l'utilise pas telle quelle.
-
+${isPro ? `## 2 bis. SPÉCIFICITÉ « PROFESSIONNEL / SERVICE » (pas de lieu à visiter, pas de plats)
+- Le but : **inspirer confiance et donner envie d'appeler**. Structure conseillée : **problème du client → solution → preuve → contact**.
+- Mets en scène les **prestations** (voir les textes) avec des icônes animées et des mots-clés qui claquent, pas des prix.
+- Montre les **humains** (dirigeant, équipe) dès que possible : c'est ce qui rassure. Si les photos sont des logos ou des visuels génériques, dis-le et propose des plans en **typographie animée**.
+- **Réseaux sociaux** : ${[f.instagram && 'Instagram ' + f.instagram, f.facebook && 'Facebook ' + f.facebook, f.site && 'site ' + f.site].filter(Boolean).join(' · ') || 'aucun fourni'}. Affiche des pastilles animées (icône ronde + @compte) à la fin, sans inventer de compte.
+- Pas de chiffres, certifications, années d'expérience ou avis qui ne figurent pas dans les données.
+` : ''}
 ## 3. Rythme et synchro musique
 - Utilise **musique/** : coupe à ${dur} s max, fondu d'entrée 0,6 s, fondu de sortie 1,6 s.
 - **beats.json** donne les temps forts (en secondes, depuis le début de la vidéo). **Chaque changement de plan tombe sur un temps fort.** Plans courts au début (1 à 1,5 s), un peu plus longs au milieu (2 à 3 s), accélération avant la fin.
@@ -303,7 +311,7 @@ ${tx.map((t, i) => `- Scène ${i + 1} : ${t.tag ? t.tag + ' — ' : ''}${t.big}$
 Les textes sont des **suggestions de contenu** : tu peux les raccourcir et les rythmer (max 6 mots par écran), mais ne change pas les prix, noms et coordonnées.
 
 ## 7. Fin (dernières ${Math.round(Math.min(9, Math.max(4, dur * .2)))} s)
-Image forte + « Venez nous voir » + **${f.nom}** + adresse (${adr || '—'}) + bouton animé **« Réservez · ${f.tel || '—'} »**${ig ? ' + @' + ig : ''}. Reste lisible **3 secondes minimum**. Dernier temps fort = impact sonore + logo.
+Image forte + « ${isPro ? 'Contactez-nous' : 'Venez nous voir'} » + **${f.nom}** + adresse (${adr || '—'}) + bouton animé **« ${cta} · ${f.tel || '—'} »**${ig ? ' + @' + ig : ''}. Reste lisible **3 secondes minimum**. Dernier temps fort = impact sonore + logo.
 
 ## 7 bis. SIGNATURE OBLIGATOIRE — « Publicité créée par NovaVisio »
 En **tout bas de l'écran de fin** (zone 1 780–1 840 px en 9:16, sous le bouton et l'adresse), ajoute la ligne **« Publicité créée par » + le logo rond NovaVisio (reference/logo_novavisio.png, ≈ 55 px) + « NovaVisio »**, discrète mais lisible (texte crème, « NovaVisio » en blanc gras), qui apparaît en fondu 1,5 s avant la fin et reste jusqu'au dernier plan. Ne la mets ni au début ni au milieu de la vidéo.

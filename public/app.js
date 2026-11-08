@@ -115,7 +115,11 @@ function askDelete(p, done) {
 /* ---------- rendu ---------- */
 /* avancement d'un établissement, dans l'ordre chronologique du travail */
 function progOf(p) {
-  const f = p.fiche || {}, steps = [
+  const f = p.fiche || {}, steps = f.type === 'pro' ? [
+    ['Fiche', 'infos', !!(f.nom && (f.tel || f.site || f.instagram || f.facebook))],
+    ['Photos', 'medias', !!p.logo && (p.photos || []).length >= 3],
+    ['Publicité', 'pub', !!(p.ad && (p.ad.script || p.adMusic))]
+  ] : [
     ['Fiche', 'infos', !!(f.nom && (f.adresse || f.tel || (f.horaires || []).length))],
     ['Photos', 'medias', !!p.logo && !p.logoAuto && (p.photos || []).length >= 3],
     ['Carte', 'infos', f.type === 'hebergement' || f.type === 'commerce' || (f.carteTxt || '').trim().length > 10],
@@ -157,7 +161,7 @@ function render() {
   <div class="card"><h2><i>1</i> Liens de l'établissement</h2><p class="hint">Colle ce que tu as. Facebook et Instagram sont lus au mieux : le site officiel et les sources publiques font le gros du travail.</p>
    <div class="g2"><label>Site internet<input data-l="site" value="${esc(L.site)}" placeholder="https://…"></label><label>Facebook<input data-l="facebook" value="${esc(L.facebook)}" placeholder="https://facebook.com/…"></label></div>
    <div class="g2"><label>Instagram<input data-l="instagram" value="${esc(L.instagram)}" placeholder="https://instagram.com/…"></label><label>Autres liens (Tripadvisor, Airbnb, Google Maps…)<input data-l="autres" value="${esc(L.autres)}" placeholder="séparés par un espace"></label></div>
-   <div class="g2"><label>Nom (facultatif)<input data-l="nom" value="${esc(L.nom)}"></label><label>Type<select data-l="type"><option value="">Détecter automatiquement</option>${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement (Airbnb, gîte, hôtel, camping)'], ['commerce', 'Commerce / autre']].map(([v, n]) => `<option value="${v}" ${L.type === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
+   <div class="g2"><label>Nom (facultatif)<input data-l="nom" value="${esc(L.nom)}"></label><label>Type<select data-l="type"><option value="">Détecter automatiquement</option>${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement (Airbnb, gîte, hôtel, camping)'], ['commerce', 'Commerce / autre'], ['pro', 'Professionnel / service (sans visite immersive)']].map(([v, n]) => `<option value="${v}" ${L.type === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
    <details style="margin-bottom:14px" ${cur.src ? 'open' : ''}><summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--b1)">📋 J'ai le code HTML d'une page (Facebook, Instagram, site…)</summary>
     <p class="hint" style="margin:8px 0">Ouvre la page dans ton navigateur (connecté si besoin), fais défiler pour charger les photos, puis : clic droit → <b>Afficher le code source de la page</b> → Cmd+A, Cmd+C, et colle ici. Ou Cmd+S → « Page web, HTML uniquement », puis dépose le fichier.</p>
     <textarea id="hh" rows="4" placeholder="Colle ici le code HTML…"></textarea>
@@ -171,26 +175,27 @@ function render() {
 /* ---------- navigation par onglets (présentation) ---------- */
 const TABS = [['infos', '📝', 'Infos'], ['medias', '🖼', 'Photos & vidéos'], ['style', '🎨', 'Style'], ['pages', '🚀', 'Pages'], ['pub', '🎬', 'Publicité']];
 function tabsUi(m, f) {
+  const TB = f && f.type === 'pro' ? TABS.filter(t => t[0] !== 'pages') : TABS;
   const key = c => { const t = (c.querySelector('h2') || {}).textContent || ''; return /Assistant/.test(t) ? 'dock' : /Liens|Fiche/.test(t) ? 'infos' : /Style/.test(t) ? 'style' : /Photos|Vidéos/.test(t) ? 'medias' : /Générer|Barre/.test(t) ? 'pages' : /Publicité/.test(t) ? 'pub' : 'infos'; };
   [...m.children].filter(c => c.classList.contains('card')).forEach(c => { c.dataset.t = key(c); if (c.dataset.t === 'dock') { c.classList.add('dock', 'min'); const h = c.querySelector('h2'); h.onclick = () => c.classList.toggle('min'); } });
   if (!f) { m.dataset.tab = 'infos'; return; }
-  if (!TABS.some(t => t[0] === cur._tab)) cur._tab = 'infos'; m.dataset.tab = cur._tab;
+  if (!TB.some(t => t[0] === cur._tab)) cur._tab = 'infos'; m.dataset.tab = cur._tab;
   const nb = (cur.photos || []).length, nc = parseCarte(f.carteTxt).reduce((n, c) => n + c.items.length, 0), nv = (cur.videos || []).length;
   const chip = (ok, t) => `<span class="chip ${ok ? 'ok' : ''}">${ok ? '✔' : '○'} ${t}</span>`;
   const head = document.createElement('div'); head.className = 'ph0';
-  head.innerHTML = `<div class="ph0t">${cur.logo ? `<img src="${URL.createObjectURL(cur.logo)}" style="background:${logoBg(cur)}">` : ''}<div><h1>${esc(f.nom || 'Nouvel établissement')}</h1><small>${esc([f.ville, f.type === 'hebergement' ? 'Hébergement' : f.type === 'commerce' ? 'Commerce' : 'Restaurant / bar'].filter(Boolean).join(' · '))}</small></div></div>
+  head.innerHTML = `<div class="ph0t">${cur.logo ? `<img src="${URL.createObjectURL(cur.logo)}" style="background:${logoBg(cur)}">` : ''}<div><h1>${esc(f.nom || 'Nouvel établissement')}</h1><small>${esc([f.ville, f.type === 'hebergement' ? 'Hébergement' : f.type === 'commerce' ? 'Commerce' : f.type === 'pro' ? 'Professionnel' : 'Restaurant / bar'].filter(Boolean).join(' · '))}</small></div></div>
    <div class="chips0">${chip(!!f.nom, 'Fiche')}${chip(!!cur.logo, 'Logo')}${chip(nb > 0, nb + ' photo' + (nb > 1 ? 's' : ''))}${f.type !== 'hebergement' ? chip(nc > 0, nc ? nc + ' plats' : 'Carte') : ''}${chip(nv > 0, nv + ' vidéo' + (nv > 1 ? 's' : ''))}</div>
-   <nav class="tabs0">${TABS.map(([k, ic, n], i) => `<button data-tab="${k}" class="${k === cur._tab ? 'on' : ''}"><i>${i + 1}</i>${ic} ${n}</button>`).join('')}</nav>`;
+   <nav class="tabs0">${TB.map(([k, ic, n], i) => `<button data-tab="${k}" class="${k === cur._tab ? 'on' : ''}"><i>${i + 1}</i>${ic} ${n}</button>`).join('')}</nav>`;
   m.prepend(head);
   head.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { cur._tab = b.dataset.tab; m.dataset.tab = cur._tab; head.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b)); window.scrollTo({ top: 0, behavior: 'smooth' }); });
-  if (cur._tab === 'pages' || true) { const nxt = TABS[TABS.findIndex(t => t[0] === cur._tab) + 1]; if (nxt) { const last = [...m.querySelectorAll('.card')].filter(c => c.dataset.t === cur._tab).pop(); if (last) { const n = document.createElement('div'); n.className = 'nx'; n.innerHTML = `<button class="b" data-go="${nxt[0]}">Suivant : ${nxt[1]} ${nxt[2]} →</button>`; n.dataset.t = cur._tab; m.insertBefore(n, last.nextSibling); n.querySelector('button').onclick = () => head.querySelector(`[data-tab="${nxt[0]}"]`).click(); } } }
+  if (cur._tab === 'pages' || true) { const nxt = TB[TB.findIndex(t => t[0] === cur._tab) + 1]; if (nxt) { const last = [...m.querySelectorAll('.card')].filter(c => c.dataset.t === cur._tab).pop(); if (last) { const n = document.createElement('div'); n.className = 'nx'; n.innerHTML = `<button class="b" data-go="${nxt[0]}">Suivant : ${nxt[1]} ${nxt[2]} →</button>`; n.dataset.t = cur._tab; m.insertBefore(n, last.nextSibling); n.querySelector('button').onclick = () => head.querySelector(`[data-tab="${nxt[0]}"]`).click(); } } }
 }
 
 function ficheHtml(f) {
   const nt = '<div class="notes" id="notes"></div>';
   const v = (k, lab, ph = '') => `<label>${lab}<input data-f="${k}" value="${esc(f[k] || '')}" placeholder="${ph}"></label>`;
   return chatHtml() + `<div class="card"><h2><i>2</i> Fiche — vérifie et corrige</h2><p class="hint">Tout est modifiable. Les modifications sont enregistrées automatiquement.</p>${nt}
-   <div class="g3">${v('nom', 'Nom')}${v('ville', 'Ville')}<label>Type<select data-f="type">${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement'], ['commerce', 'Commerce / autre']].map(([x, n]) => `<option value="${x}" ${f.type === x ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
+   <div class="g3">${v('nom', 'Nom')}${v('ville', 'Ville')}<label>Type<select data-f="type">${[['restaurant', 'Restaurant / bar / café'], ['hebergement', 'Hébergement'], ['commerce', 'Commerce / autre'], ['pro', 'Professionnel / service']].map(([x, n]) => `<option value="${x}" ${f.type === x ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
    <label>Accroche courte (sous le nom)<input data-s="slogan" value="${esc(f.slogan?.fr || '')}"></label>
    <label>Description courte <span class="hint" style="font-weight:400">(vignette / aperçu NovaTour — 140 caractères max)</span><input data-s="descCourte" maxlength="160" value="${esc(f.descCourte?.fr || '')}"></label>
    <label>Description longue <span class="hint" style="font-weight:400">(page « Infos » de la visite)</span><textarea data-s="description" rows="5">${esc(f.description?.fr || '')}</textarea></label>
@@ -266,7 +271,7 @@ const BAR_PG = [['intro', 'Intro'], ['infos', 'Point Info'], ['galerie', 'Galeri
 /* ---------- réglages mémorisés par type d'établissement ---------- */
 const vm = v => { const m = String(v).match(/https?:\/\/([a-z0-9-]+)\.vercel\.app/i) || String(v).match(/vercel\.com\/[^\/\s?#]+\/([a-z0-9][a-z0-9-_.]*)/i); return m ? [m[0], m[1]] : null; };
 const getProfiles = () => { try { return JSON.parse(localStorage.getItem('ng_profiles')) || {}; } catch (e) { return {}; } };
-const TYPE_LAB = { restaurant: 'restaurant / bar', hebergement: 'hébergement', commerce: 'commerce' };
+const TYPE_LAB = { restaurant: 'restaurant / bar', hebergement: 'hébergement', commerce: 'commerce', pro: 'professionnel' };
 function saveProfile() {
   const f = cur.fiche, p = getProfiles(), cl = a => (a || []).map(b => ({ k: b.k, t: b.t, u: '' }));
   p[f.type || 'restaurant'] = { pstyle: Object.assign({}, f.pstyle || {}), police: f.police || 'serif', logoForme: f.logoForme || 'rond', btnC: f.btnC || '', ad: { style: (cur.ad || {}).style || '1', fmt: (cur.ad || {}).fmt || '9:16' }, bar: cl(cur.bar), bar2: cl(cur.bar2) };
@@ -644,7 +649,7 @@ async function search() {
     });
     { const others = (await dbAll()).filter(p => !p.del && p.id !== cur.id), gp = uniquePalette(cur.fiche, others), th = /^#[0-9a-f]{6}$/i.test(r.theme || '') && satOf(r.theme) > .3 && !/^#(2b899d|1f2a44)$/i.test(r.theme) ? r.theme : null;
       Object.assign(cur.fiche, th ? { c2: th, c1: mix(th, '#000000', .72), c3: mix(th, '#ffffff', .5) } : gp); cur.fiche.style = leastUsedStyle(cur.fiche, others); }
-    cur.notes = x.notes || []; cur.fiche._trh = ''; applyProfile(); cur._tab = 'pages';
+    cur.notes = x.notes || []; cur.fiche._trh = ''; applyProfile(); cur._tab = cur.fiche.type === 'pro' ? 'medias' : 'pages';
     save(); render(); msg('Fiche trouvée. Récupération du logo et des photos…', 'i');
     // logo : on essaie tous les candidats (site, réseaux, favicon), puis monogramme rond en dernier recours
     if (!cur.logo || cur.logoAuto) { let got = false;
@@ -792,14 +797,14 @@ function openFinder(pre = '') {
    <div class="row"><input id="fq" style="flex:1;min-width:200px;margin:0" placeholder="Nom, adresse exacte, ou lien Facebook / Instagram / site / Google Maps" value="${esc(pre)}"><button class="b" id="fs">Chercher</button></div>
    <div class="row" id="cats" style="margin-top:10px">${CATS.map(([k, n]) => `<button class="b o s" data-cat="${k}">${n}</button>`).join('')}</div>
    <div id="fr" style="margin-top:12px"></div>
-   <div class="row" style="margin-top:14px"><button class="b o s" id="fw">🌐 Plus de propositions (recherche web)</button><button class="b o s" id="fl">Je préfère coller des liens</button><button class="b o s" id="fx" style="margin-left:auto">Fermer</button></div></div>`;
+   <div class="row" style="margin-top:14px"><button class="b o s" id="fw">🌐 Plus de propositions (recherche web)</button><button class="b o s" id="fp">💼 Ajouter un professionnel</button><button class="b o s" id="fl">Je préfère coller des liens</button><button class="b o s" id="fx" style="margin-left:auto">Fermer</button></div></div>`;
   document.body.appendChild(d); const q = d.querySelector('#fq'), fc = d.querySelector('#fc'), fcl = d.querySelector('#fcl'); (pre ? q : fc).focus();
   const close = () => d.remove(), show = html => d.querySelector('#fr').innerHTML = html;
   const chips = () => { d.querySelector('#rc').innerHTML = getCities().map(c => `<button class="b s ${c.insee === city.insee ? '' : 'o'}" data-i="${c.insee}">📍 ${esc(c.nom)}</button>`).join(''); d.querySelectorAll('#rc button').forEach(b => b.onclick = () => choose(getCities().find(c => c.insee === b.dataset.i))); };
   const choose = c => { city = c; setCity(c); fc.value = c.nom; fcl.style.display = 'none'; chips(); show(''); };
   chips();
   let t = 0; fc.oninput = () => { clearTimeout(t); t = setTimeout(async () => { const v = fc.value.trim(); if (v.length < 2) { fcl.style.display = 'none'; return; } try { const r = await (await fetch('https://geo.api.gouv.fr/communes?fields=nom,code,codesPostaux,departement&boost=population&limit=6&nom=' + encodeURIComponent(v))).json(); fcl.innerHTML = r.map(c => `<div data-c='${esc(JSON.stringify({ nom: c.nom, insee: c.code, cp: (c.codesPostaux || [])[0] || '' }))}' style="padding:10px 14px;cursor:pointer;font-size:14px">📍 <b>${esc(c.nom)}</b> <small style="color:var(--mu)">${esc(c.departement?.nom || '')} ${esc((c.codesPostaux || [])[0] || '')}</small></div>`).join('') || '<div style="padding:10px 14px;color:var(--mu)">Aucune ville</div>'; fcl.style.display = 'block'; fcl.querySelectorAll('div[data-c]').forEach(e => { e.onmouseenter = () => e.style.background = '#e4f1f4'; e.onmouseleave = () => e.style.background = ''; e.onclick = () => choose(JSON.parse(e.dataset.c)); }); } catch (e) { } }, 250); };
-  const KT = { restaurant: 'restaurant / bar', hebergement: 'hébergement', commerce: 'commerce' };
+  const KT = { restaurant: 'restaurant / bar', hebergement: 'hébergement', commerce: 'commerce', pro: 'professionnel' };
   const list = (arr, extra = '') => {
     show(extra + (arr.length ? arr.map((c, i) => `<div class="pick" data-i="${i}" style="padding:11px 14px;border:1.5px solid var(--line);border-radius:12px;margin-bottom:8px;cursor:pointer"><b>${esc(c.nom || '(adresse sans nom)')}</b>${c.type ? ` <small style="color:var(--b2)">· ${KT[c.type]}</small>` : ''}${c.site ? ' <small>🌐</small>' : ''}<br><small style="color:var(--mu)">${esc(c.adresse || '')}</small></div>`).join('') : '<p class="hint">Aucun résultat. Essaie « 🌐 Plus de propositions », ou précise le nom.</p>'));
     d.querySelectorAll('.pick').forEach(e => { e.onmouseenter = () => e.style.borderColor = 'var(--b2)'; e.onmouseleave = () => e.style.borderColor = ''; e.onclick = () => pick(arr[+e.dataset.i]); });
@@ -820,6 +825,7 @@ function openFinder(pre = '') {
     close(); cur = newProject(); Object.assign(cur.links, { nom, adresse: c.adresse || '', ville: c.ville || city.nom, tel: c.tel || '', site: c.site || '', facebook: c.facebook || '', type: c.type || '' }); await dbPut(cur); renderList(); render(); window.scrollTo(0, 0); search();
   }
   d.querySelector('#fs').onclick = () => run(false); d.querySelector('#fw').onclick = () => run(true); d.querySelector('#fx').onclick = close;
+  d.querySelector('#fp').onclick = async () => { close(); cur = newProject(); cur.links.type = 'pro'; await dbPut(cur); renderList(); render(); };
   d.querySelector('#fl').onclick = async () => { close(); cur = newProject(); await dbPut(cur); renderList(); render(); };
   q.onkeydown = e => { if (e.key === 'Enter') run(false); if (e.key === 'Escape') close(); };
   if (pre.length > 2) run(false);
