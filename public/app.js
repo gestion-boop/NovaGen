@@ -230,6 +230,9 @@ function ficheHtml(f) {
   <div class="g4"><label>Format<select id="adf">${Object.entries(AD_FMT).map(([k, v]) => `<option value="${k}">${v[2]}</option>`).join('')}</select></label><label>Durée max<select id="add"><option value="15">15 secondes</option><option value="30">30 secondes</option><option value="45">45 secondes</option></select></label><label>Style de motion<select id="ads">${Object.entries(AD_STY).map(([k, v]) => `<option value="${k}">${k} — ${v}</option>`).join('')}</select></label><label>La musique démarre à (s)<input type="number" id="ado" min="0" step="1" value="0"></label></div>
   <div class="row" style="margin:10px 0"><button class="b o s" id="adm">🎵 Choisir la musique</button><button class="b o s" id="admx">✕ Retirer</button><input type="file" id="admf" accept="audio/*,.mp3,.m4a,.wav" hidden><span class="hint" id="admn" style="margin:0"></span></div>
   <div class="row" style="margin-top:12px"><button class="b" id="adkit" style="padding:12px 20px;font-size:15px">📦 Exporter le ZIP pour Claude (design motion)</button><span class="hint" id="adst" style="margin:0"></span></div></div>
+  <div class="card"><h2>🎞 Publicité — vidéos finales du client</h2><p class="hint">Dépose ici les vidéos pub terminées (MP4, 45 Mo max) : elles sont sauvegardées sur le serveur dans la fiche de ce client et récupérables depuis n'importe quel ordinateur.</p>
+  <div class="drop" id="avd">Glisser une ou plusieurs vidéos MP4 ici, ou cliquer<input type="file" id="avf" accept="video/mp4,.mp4" multiple hidden></div>
+  <div id="avl" style="margin-top:10px"></div><span class="hint" id="avs" style="margin:0"></span></div>
   <div class="card"><h2><i>6</i> Générer</h2><p class="hint">Chaque ZIP se téléverse tel quel sur Vercel. Aperçu = exactement ce qui sera dans le ZIP.</p><div class="out" id="out"></div>
    <div class="row" style="margin-top:14px"><button class="b" id="all">⬇ Tout télécharger (ZIP séparés)</button></div><div id="msg2"></div></div>`;
 }

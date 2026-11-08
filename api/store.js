@@ -3,7 +3,7 @@
 const URL_ = () => (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const KEY = () => process.env.SUPABASE_SERVICE_KEY || '';
 const H = (x = {}) => Object.assign({ apikey: KEY(), Authorization: 'Bearer ' + KEY() }, x);
-const ID = /^[A-Za-z0-9_-]{3,60}$/, NAME = /^(logo\.png|p\/[A-Za-z0-9_-]{3,60}\.jpg)$/;
+const ID = /^[A-Za-z0-9_-]{3,60}$/, NAME = /^(logo\.png|p\/[A-Za-z0-9_-]{3,60}\.jpg|pv\/[A-Za-z0-9_-]{3,60}\.mp4)$/;
 const j = async r => { const t = await r.text(); let o; try { o = JSON.parse(t); } catch (e) { o = t; } if (!r.ok) throw new Error((o && (o.message || o.error)) || ('Supabase ' + r.status)); return o; };
 const rest = (path, opt = {}) => fetch(URL_() + '/rest/v1/' + path, Object.assign({}, opt, { headers: H(Object.assign({ 'content-type': 'application/json' }, opt.headers || {})) })).then(j);
 const sign = async (id, names) => {
@@ -15,7 +15,7 @@ const sign = async (id, names) => {
 const rmFiles = async (id, names) => { if (!names.length) return; await fetch(URL_() + '/storage/v1/object/novagen', { method: 'DELETE', headers: H({ 'content-type': 'application/json' }), body: JSON.stringify({ prefixes: names.map(n => id + '/' + n) }) }).then(j); };
 const listFiles = async id => {
   const out = [];
-  for (const dir of ['', 'p']) { const o = await fetch(URL_() + '/storage/v1/object/list/novagen', { method: 'POST', headers: H({ 'content-type': 'application/json' }), body: JSON.stringify({ prefix: id + (dir ? '/' + dir : ''), limit: 1000 }) }).then(j); for (const f of o) if (f.id) out.push((dir ? dir + '/' : '') + f.name); }
+  for (const dir of ['', 'p', 'pv']) { const o = await fetch(URL_() + '/storage/v1/object/list/novagen', { method: 'POST', headers: H({ 'content-type': 'application/json' }), body: JSON.stringify({ prefix: id + (dir ? '/' + dir : ''), limit: 1000 }) }).then(j); for (const f of o) if (f.id) out.push((dir ? dir + '/' : '') + f.name); }
   return out;
 };
 
@@ -43,6 +43,15 @@ module.exports = async (req, res) => {
       const buf = Buffer.from(String(b.b64 || ''), 'base64'); if (!buf.length || buf.length > 8 * 1024 * 1024) return res.status(400).json({ error: 'fichier vide ou trop gros' });
       await fetch(URL_() + '/storage/v1/object/novagen/' + b.id + '/' + b.name, { method: 'POST', headers: H({ 'content-type': b.name.endsWith('.png') ? 'image/png' : 'image/jpeg', 'x-upsert': 'true' }), body: buf }).then(j);
       return res.json({ ok: true });
+    }
+    if (b.mode === 'upsign') {
+      if (!/^pv\/[A-Za-z0-9_-]{3,60}\.mp4$/.test(b.name || '')) return res.status(400).json({ error: 'nom de vidéo invalide' });
+      const o = await fetch(URL_() + '/storage/v1/object/upload/sign/novagen/' + b.id + '/' + b.name, { method: 'POST', headers: H({ 'content-type': 'application/json', 'x-upsert': 'true' }), body: '{}' }).then(j);
+      return res.json({ url: URL_() + '/storage/v1' + o.url });
+    }
+    if (b.mode === 'dl') {
+      const n = (b.names || []).filter(x => NAME.test(x)), u = await sign(b.id, n);
+      return res.json({ urls: u });
     }
     if (b.mode === 'remove') { const n = (b.names || []).filter(x => NAME.test(x)); await rmFiles(b.id, n); return res.json({ ok: true }); }
     if (b.mode === 'purge') {

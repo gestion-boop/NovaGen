@@ -175,6 +175,7 @@ function bindAd() {
     $('#advx').onclick = () => { cur.adVoice = null; save(); vn(); chk(); }; }
   if ($('#adkit2')) $('#adkit2').onclick = mkKit;
   if ($('#adkit')) $('#adkit').onclick = mkKit;
+  bindVids();
 }
 
 /* dossier pour Claude : prompt complet + photos + logo + données, à déposer dans une conversation */
@@ -330,4 +331,33 @@ ${ad.note ? '## 8 bis. Consignes spécifiques du client\n' + ad.note + '\n\n' : 
   zip.file('PROMPT_VIDEO.md', pm); try { for (const n of ['reference_pub.mp4', 'storyboard.jpg', 'logo_novavisio.png']) { const r = await fetch('ref/' + n); if (r.ok) zip.file('reference/' + n, await r.blob()); } } catch (e) { } if (bts.length) zip.file('beats.json', JSON.stringify({ duree_musique_s: +mdur.toFixed(1), decalage_s: +ad.offset || 0, temps_forts_s: bts }, null, 1));
   zip.file('LIRE-MOI_brief.md', md); zip.file('fiche.json', JSON.stringify(Object.assign({}, f, { _logo: undefined, _fond: undefined }), null, 1));
   return { blob: await zip.generateAsync({ type: 'blob' }), prompt: `Voici le dossier de ${f.nom}. Lis d'abord PROMPT_VIDEO.md en entier et regarde reference/storyboard.jpg (vidéo modèle à égaler) (puis LIRE-MOI_brief.md pour les données) et réalise la vidéo publicitaire demandée (${dur} s max, ${fmt}) : montage motion design nerveux, hook fort, transitions et bruitages calés sur les temps forts de beats.json, photos choisies en cohérence avec chaque texte. Utilise les photos, le logo et la musique du dossier.` };
+}
+
+/* ---------- vidéos pub finales, sauvegardées sur le serveur (Supabase, dossier <id>/pv/) ---------- */
+function bindVids() {
+  const l = $('#avl'), dz = $('#avd'), fi = $('#avf'); if (!l || !cur) return; cur.adVids = cur.adVids || [];
+  const st = t => { $('#avs').textContent = t; }, mo = n => (n / 1048576).toFixed(1) + ' Mo';
+  const draw = () => {
+    l.innerHTML = cur.adVids.length ? cur.adVids.map((v, i) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border:1px solid #d7e3e8;border-radius:10px;margin-bottom:6px;background:#fff"><span style="font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎬 <b>${esc(v.name)}</b> <span class="hint" style="margin:0">· ${mo(v.size)} · ${new Date(v.date).toLocaleDateString('fr-FR')}</span></span><span style="display:flex;gap:6px;flex:none"><button class="b o s" data-vdl="${i}">⬇ Télécharger</button><button class="b o s" data-vrm="${i}">✕</button></span></div>`).join('') : '<p class="hint" style="margin:0">Aucune vidéo enregistrée pour ce client.</p>';
+    l.querySelectorAll('[data-vdl]').forEach(b => b.onclick = async () => { const v = cur.adVids[+b.dataset.vdl]; try { st('Préparation du téléchargement…'); const r = await api('/api/store', { mode: 'dl', id: cur.id, names: ['pv/' + v.id + '.mp4'] }), u = r.urls['pv/' + v.id + '.mp4']; if (!u) throw new Error('fichier introuvable sur le serveur'); const bl = await (await fetch(u)).blob(), a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = v.name; document.body.appendChild(a); a.click(); a.remove(); st('✔ Téléchargée : ' + v.name); } catch (e) { st('Erreur : ' + e.message); } });
+    l.querySelectorAll('[data-vrm]').forEach(b => b.onclick = async () => { const i = +b.dataset.vrm, v = cur.adVids[i]; if (!confirm('Supprimer définitivement « ' + v.name + ' » du serveur ?')) return; try { await api('/api/store', { mode: 'remove', id: cur.id, names: ['pv/' + v.id + '.mp4'] }); cur.adVids.splice(i, 1); save(); draw(); st('Vidéo supprimée.'); } catch (e) { st('Erreur : ' + e.message); } });
+  };
+  const up = async fl => {
+    for (const f of fl) {
+      if (!/mp4$/i.test(f.name) && f.type !== 'video/mp4') { st('Seuls les MP4 sont acceptés : ' + f.name); continue; }
+      if (f.size > 45 * 1048576) { st('Trop lourde (45 Mo max) : ' + f.name); continue; }
+      const id = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      try {
+        st('⬆ Envoi de ' + f.name + ' (' + mo(f.size) + ')…');
+        const { url } = await api('/api/store', { mode: 'upsign', id: cur.id, name: 'pv/' + id + '.mp4' });
+        const r = await fetch(url, { method: 'PUT', headers: { 'content-type': 'video/mp4', 'x-upsert': 'true' }, body: f });
+        if (!r.ok) throw new Error('envoi refusé (' + r.status + ') ' + (await r.text()).slice(0, 120));
+        cur.adVids.unshift({ id, name: f.name, size: f.size, date: Date.now() }); save(); draw(); st('✔ Enregistrée dans la fiche : ' + f.name);
+      } catch (e) { st('Erreur : ' + e.message + (/configur/.test(e.message) ? '' : ' — vérifie la sauvegarde serveur.')); }
+    }
+  };
+  dz.onclick = e => { if (e.target === dz) fi.click(); }; fi.onchange = () => { up([...fi.files]); fi.value = ''; };
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add('on'); }; dz.ondragleave = () => dz.classList.remove('on');
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove('on'); up([...e.dataTransfer.files]); };
+  draw();
 }
