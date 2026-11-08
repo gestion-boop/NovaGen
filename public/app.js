@@ -165,13 +165,13 @@ function render() {
    <div class="logo" style="margin-bottom:14px">${cur.logo ? `<img id="lg" src="${URL.createObjectURL(cur.logo)}" style="background:${logoBg(cur)}">` : ''}<div class="drop" id="lgd" style="flex:1">${cur.logo ? 'Remplacer le logo' : 'Déposer le logo (facultatif : sinon cherché sur le site)'}<input type="file" id="lgf" accept="image/*" hidden></div></div>
    <div class="row"><button class="b" id="go">⚡ Tout en un clic</button><span class="hint" style="margin:0">Je cherche, je remplis la fiche, le logo et les photos, j'applique tes réglages mémorisés, puis j'ouvre l'onglet Pages. Compte 30 à 60 s.</span></div><div id="msg"></div></div>
   ${f ? ficheHtml(f) : ''}`;
-  bind(); if (f) { renderPhotos(); renderVideos(); renderBar(); }
+  bind(); if (f) { renderPhotos(); renderVideos(); renderBar(); bindAd(); }
   tabsUi(m, f);
 }
 /* ---------- navigation par onglets (présentation) ---------- */
-const TABS = [['infos', '📝', 'Infos'], ['medias', '🖼', 'Photos & vidéos'], ['style', '🎨', 'Style'], ['pages', '🚀', 'Pages']];
+const TABS = [['infos', '📝', 'Infos'], ['medias', '🖼', 'Photos & vidéos'], ['style', '🎨', 'Style'], ['pages', '🚀', 'Pages'], ['pub', '🎬', 'Publicité']];
 function tabsUi(m, f) {
-  const key = c => { const t = (c.querySelector('h2') || {}).textContent || ''; return /Assistant/.test(t) ? 'dock' : /Liens|Fiche/.test(t) ? 'infos' : /Style/.test(t) ? 'style' : /Photos|Vidéos/.test(t) ? 'medias' : /Générer|Barre/.test(t) ? 'pages' : 'infos'; };
+  const key = c => { const t = (c.querySelector('h2') || {}).textContent || ''; return /Assistant/.test(t) ? 'dock' : /Liens|Fiche/.test(t) ? 'infos' : /Style/.test(t) ? 'style' : /Photos|Vidéos/.test(t) ? 'medias' : /Générer|Barre/.test(t) ? 'pages' : /Publicité/.test(t) ? 'pub' : 'infos'; };
   [...m.children].filter(c => c.classList.contains('card')).forEach(c => { c.dataset.t = key(c); if (c.dataset.t === 'dock') { c.classList.add('dock', 'min'); const h = c.querySelector('h2'); h.onclick = () => c.classList.toggle('min'); } });
   if (!f) { m.dataset.tab = 'infos'; return; }
   if (!TABS.some(t => t[0] === cur._tab)) cur._tab = 'infos'; m.dataset.tab = cur._tab;
@@ -213,6 +213,13 @@ function ficheHtml(f) {
    <label>Texte à côté de la vidéo<textarea data-f="videoTexte" rows="3" placeholder="Une cuisson ancestrale…">${esc(f.videoTexte || '')}</textarea></label>
    <label>Note Google (affichée dans Point Info « Vitrine »)<input data-f="avis" value="${esc(f.avis || '')}" placeholder="4,6/5 · plus de 1 000 avis Google"></label></div>
   <div class="card"><h2>🎛 Barre du bas — simulation</h2><p class="hint">Place les boutons, choisis où chacun mène, puis clique dessus pour tester comme le client. L'ordre et les liens sont à reporter dans 3DVista.</p><div id="bar"></div></div>
+  <div class="card"><h2>🎬 Publicité — vidéo motion</h2><p class="hint">Je compose une vidéo animée avec le logo, les photos, l'accroche, les plats et l'adresse de la fiche, calée sur ta musique. 45 secondes maximum. Tout se fait dans ton navigateur.</p>
+  <div class="g4"><label>Format<select id="adf">${Object.entries(AD_FMT).map(([k, v]) => `<option value="${k}">${v[2]}</option>`).join('')}</select></label><label>Durée<select id="add"><option value="15">15 secondes</option><option value="30">30 secondes</option><option value="45">45 secondes</option></select></label><label>Style de motion<select id="ads">${Object.entries(AD_STY).map(([k, v]) => `<option value="${k}">${k} — ${v}</option>`).join('')}</select></label><label>La musique démarre à (s)<input type="number" id="ado" min="0" step="1" value="0"></label></div>
+  <div class="row" style="margin:10px 0"><button class="b o s" id="adm">🎵 Choisir la musique</button><button class="b o s" id="admx">✕ Retirer</button><input type="file" id="admf" accept="audio/*,.mp3,.m4a,.wav" hidden><span class="hint" id="admn" style="margin:0"></span></div>
+  <div style="text-align:center"><canvas id="adcv" width="540" height="960" style="max-width:100%;max-height:560px;border-radius:14px;background:#111;box-shadow:0 8px 26px rgba(0,0,0,.25)"></canvas></div>
+  <div class="pgb" style="margin:10px 0"><i id="adbar" style="width:0"></i></div>
+  <div class="row"><button class="b" id="adplay">▶ Aperçu</button><button class="b o" id="adrec">⏺ Exporter la vidéo</button><span class="hint" id="adst" style="margin:0"></span></div>
+  <p class="hint">L'export se fait en temps réel (45 s de vidéo = 45 s d'attente) : laisse cet onglet au premier plan. La musique reste sur cet ordinateur et doit être libre de droits pour une publicité. Les couleurs viennent de l'onglet Style.</p></div>
   <div class="card"><h2><i>6</i> Générer</h2><p class="hint">Chaque ZIP se téléverse tel quel sur Vercel. Aperçu = exactement ce qui sera dans le ZIP.</p><div class="out" id="out"></div>
    <div class="row" style="margin-top:14px"><button class="b" id="all">⬇ Tout télécharger (ZIP séparés)</button></div><div id="msg2"></div></div>`;
 }
@@ -254,14 +261,14 @@ const getProfiles = () => { try { return JSON.parse(localStorage.getItem('ng_pro
 const TYPE_LAB = { restaurant: 'restaurant / bar', hebergement: 'hébergement', commerce: 'commerce' };
 function saveProfile() {
   const f = cur.fiche, p = getProfiles(), cl = a => (a || []).map(b => ({ k: b.k, t: b.t, u: '' }));
-  p[f.type || 'restaurant'] = { pstyle: Object.assign({}, f.pstyle || {}), police: f.police || 'serif', logoForme: f.logoForme || 'rond', btnC: f.btnC || '', bar: cl(cur.bar), bar2: cl(cur.bar2) };
+  p[f.type || 'restaurant'] = { pstyle: Object.assign({}, f.pstyle || {}), police: f.police || 'serif', logoForme: f.logoForme || 'rond', btnC: f.btnC || '', ad: { style: (cur.ad || {}).style || '1', fmt: (cur.ad || {}).fmt || '9:16' }, bar: cl(cur.bar), bar2: cl(cur.bar2) };
   try { localStorage.setItem('ng_profiles', JSON.stringify(p)); } catch (e) { }
 }
 function applyProfile() {
   const f = cur.fiche; if (!f || f._prof) return false; f._prof = 1;
   const p = getProfiles()[f.type || 'restaurant']; if (!p) return false;
   const hasC = parseCarte(f.carteTxt).length, fix = a => (a || []).map(b => !hasC && b.t === 'page:carte' ? { k: 'reserver', t: 'page:reservation', u: '' } : { k: b.k, t: b.t, u: '' });
-  f.pstyle = Object.assign({}, p.pstyle); f.police = p.police; f.logoForme = p.logoForme; if (p.btnC) f.btnC = p.btnC;
+  f.pstyle = Object.assign({}, p.pstyle); f.police = p.police; f.logoForme = p.logoForme; if (p.btnC) f.btnC = p.btnC; if (p.ad) cur.ad = Object.assign({ dur: 45, offset: 0 }, p.ad);
   if (p.bar && p.bar.length) cur.bar = fix(p.bar); if (p.bar2 && p.bar2.length) cur.bar2 = fix(p.bar2);
   return true;
 }

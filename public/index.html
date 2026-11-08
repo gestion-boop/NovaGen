@@ -52,7 +52,7 @@ button.b:hover{filter:brightness(1.08)}button.b:disabled{opacity:.5;cursor:wait}
 :root{--bg:#f4f7fa}body{background:linear-gradient(180deg,#eaf1f6 0,var(--bg) 220px)}
 header{padding:12px 24px;box-shadow:0 2px 14px rgba(18,92,104,.25)}
 .card{border-radius:20px;border-color:#e3eaf1;box-shadow:0 4px 18px rgba(30,60,90,.05);padding:22px 24px}.card h2 i{display:none}.card h2{font-size:17px}
-main[data-tab] .card[data-t]:not([data-t="dock"]),main[data-tab] .nx{display:none}main[data-tab="infos"][id] .card[data-t="infos"],main[data-tab="style"][id] .card[data-t="style"],main[data-tab="medias"][id] .card[data-t="medias"],main[data-tab="pages"][id] .card[data-t="pages"]{display:block}
+main[data-tab] .card[data-t]:not([data-t="dock"]),main[data-tab] .nx{display:none}main[data-tab="infos"][id] .card[data-t="infos"],main[data-tab="style"][id] .card[data-t="style"],main[data-tab="medias"][id] .card[data-t="medias"],main[data-tab="pages"][id] .card[data-t="pages"],main[data-tab="pub"][id] .card[data-t="pub"]{display:block}
 .ph0{background:#fff;border:1px solid #e3eaf1;border-radius:20px;padding:16px 20px 0;box-shadow:0 4px 18px rgba(30,60,90,.05);position:sticky;top:8px;z-index:15}
 .ph0t{display:flex;align-items:center;gap:14px}.ph0t img{width:56px;height:56px;border-radius:50%;object-fit:contain;padding:5px;box-shadow:0 2px 8px rgba(0,0,0,.18)}.ph0t h1{font-size:21px;line-height:1.15}.ph0t small{color:var(--mu);font-size:13px}
 .chips0{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 4px}.chip{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:#eef1f5;color:var(--mu)}.chip.ok{background:#e4f5ea;color:#1b6b37}
@@ -101,7 +101,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--b2)!impo
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media(max-width:900px){.app{grid-template-columns:1fr}aside{position:static}.g3,.g4{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.g2,.g3,.g4{grid-template-columns:1fr}}
-</style></head><body>
+</style><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;900&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+</head><body>
 <header><b>NovaGen</b><span class="sub">Générateur de pages NovaTour</span><span class="sub" id="cl" style="font-size:12px;white-space:nowrap"></span><div id="sw"><input id="q" placeholder="🔎 Rechercher un établissement (nom, ville, téléphone…)" autocomplete="off"><div id="qr"></div></div></header>
 <div class="app">
  <aside><h3>Établissements</h3><div id="list"></div><button class="b" style="width:100%;margin-top:10px" id="new">+ Nouvel établissement</button></aside>
@@ -111,6 +112,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--b2)!impo
 <script src="vendor/jszip.min.js"></script>
 <script src="gen.js"></script>
 <script src="modeles.js"></script>
+<script src="pub.js"></script>
 <script src="app.js"></script>
 <script src="sync.js"></script>
 </body></html>
