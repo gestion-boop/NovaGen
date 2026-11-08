@@ -151,7 +151,7 @@ function render() {
     <textarea id="hh" rows="4" placeholder="Colle ici le code HTML…"></textarea>
     <div class="row" style="margin-top:8px"><button class="b o s" id="hf">Choisir un ou plusieurs fichiers .html</button><input type="file" id="hfi" accept=".html,.htm,.txt,.mhtml" multiple hidden><label style="display:inline-flex;gap:6px;align-items:center;font-size:12px;margin:0"><input type="checkbox" id="hadd" style="width:auto;margin:0"> ajouter à ce qui est déjà chargé</label><span class="hint" id="hs" style="margin:0">${cur.src ? `✔ ${cur.src.images.length} image(s) et ${cur.src.text.length} caractères de texte détectés` + ' <a href="#" id="hx">effacer</a>' : ''}</span></div></details>
    <div class="logo" style="margin-bottom:14px">${cur.logo ? `<img id="lg" src="${URL.createObjectURL(cur.logo)}" style="background:${logoBg(cur)}">` : ''}<div class="drop" id="lgd" style="flex:1">${cur.logo ? 'Remplacer le logo' : 'Déposer le logo (facultatif : sinon cherché sur le site)'}<input type="file" id="lgf" accept="image/*" hidden></div></div>
-   <div class="row"><button class="b" id="go">🔎 Chercher les infos</button><span class="hint" style="margin:0">Compte 30 à 60 s.</span></div><div id="msg"></div></div>
+   <div class="row"><button class="b" id="go">⚡ Tout en un clic</button><span class="hint" style="margin:0">Je cherche, je remplis la fiche, le logo et les photos, j'applique tes réglages mémorisés, puis j'ouvre l'onglet Pages. Compte 30 à 60 s.</span></div><div id="msg"></div></div>
   ${f ? ficheHtml(f) : ''}`;
   bind(); if (f) { renderPhotos(); renderVideos(); renderBar(); }
   tabsUi(m, f);
@@ -189,7 +189,7 @@ function ficheHtml(f) {
    <div><label>Services (un par ligne)<textarea data-sv rows="6">${esc((f.services || []).map(s => s.fr || s).join('\n'))}</textarea></label>
    <label>Carte — « # Catégorie » puis « Plat | prix | description »<textarea data-f="carteTxt" rows="8" placeholder="# Burgers&#10;Le Classique | 12,50 € | steak, cheddar">${esc(f.carteTxt || '')}</textarea></label><div class="row" style="margin-top:8px"><button class="b o s" id="cim">📄 Importer la carte (PDF, JPG, PNG)</button><input type="file" id="cif" accept="application/pdf,image/*" multiple hidden><span class="hint" id="cm" style="margin:0">Je lis le fichier, je remplis la carte et j'ouvre l'aperçu.</span></div></div></div></div>
   <div class="card"><h2><i>3</i> Style</h2><div class="g4">
-   <label>Couleur sombre<input type="color" data-f="c1" value="${f.c1 || '#1f2a44'}"></label><label>Accent<input type="color" data-f="c2" value="${f.c2 || '#2b899d'}"></label><label>Survol des boutons<input type="color" data-f="c3" value="${f.c3 || '#f2b632'}"></label><div style="grid-column:1/-1" class="row"><button class="b o s" id="nch">🎨 Nouvelle charte graphique</button><button class="b o s" id="nchr" title="Palette et style au hasard">🎲 Au hasard</button><span class="hint" style="margin:0">Palette (et style) différents des autres établissements.</span></div>
+   <label>Couleur sombre<input type="color" data-f="c1" value="${f.c1 || '#1f2a44'}"></label><label>Accent<input type="color" data-f="c2" value="${f.c2 || '#2b899d'}"></label><label>Survol des boutons<input type="color" data-f="c3" value="${f.c3 || '#f2b632'}"></label><div style="grid-column:1/-1" class="row"><button class="b o s" id="nch">🎨 Nouvelle charte graphique</button><button class="b o s" id="nchr" title="Palette et style au hasard">🎲 Au hasard</button><span class="hint" style="margin:0">Palette (et style) différents des autres établissements.</span></div><div style="grid-column:1/-1" class="row"><button class="b o s" id="psave">💾 Mémoriser mes réglages pour tous les « ${TYPE_LAB[f.type] || 'restaurant / bar'} »</button><span class="hint" style="margin:0">Styles des pages, titres, forme du logo et barre du bas : repris automatiquement à chaque nouvel établissement de ce type.${getProfiles()[f.type || 'restaurant'] ? ' <b>✔ Réglages déjà mémorisés.</b>' : ''}</span></div>
    <label>Titres<select data-f="police"><option value="serif" ${f.police !== 'sans' ? 'selected' : ''}>Élégant (serif + script)</option><option value="sans" ${f.police === 'sans' ? 'selected' : ''}>Moderne (Montserrat gras)</option></select></label></div>
    <div class="g2"><label>Style des pages (carte, galerie, infos, intro)<select data-f="style"><option value="" ${!f.style ? 'selected' : ''}>Auto — ${(STYLES.find(x => x[0] === styleOf(f)) || [])[1]} (propre à cet établissement)</option>${STYLES.map(([k, n]) => `<option value="${k}" ${String(f.style) === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label><div style="padding-top:22px"><button class="b o s" id="fromlogo">🎨 Couleurs depuis le logo</button></div></div></div>
   <div class="card"><h2><i>4</i> Photos <small style="font-weight:400;color:var(--mu)" id="pc"></small></h2><p class="hint">★ = photo de fond de l'intro. ✕ = retirer. Tu peux en déposer d'autres.</p>
@@ -236,6 +236,22 @@ async function importCarte(list, btn) {
 /* ---------- barre du bas : simulation (2 pages de boutons, liens, test au clic, plein écran) ---------- */
 const BAR_LAB = { menu: 'Carte', reserver: 'Réserver', photos: 'Photos', appeler: 'Appeler', infos: 'Infos', localisation: 'Plan', contact: 'Contact', plan: 'Plan', panoramas: 'Panoramas', video: 'Vidéo', son: 'Son', pleinecran: 'Plein écran', vr: 'VR', maison: 'Retour', burger: 'Plus', lit: 'Chambres', wifi: 'Wi-Fi', cafe: 'Café', vin: 'Vins', piscine: 'Piscine', tente: 'Camping', gateau: 'Pâtisserie', velo: 'Vélo', play: 'Lecture' };
 const BAR_PG = [['intro', 'Intro'], ['infos', 'Point Info'], ['galerie', 'Galerie'], ['carte', 'Carte'], ['reservation', 'Réservation'], ['video', 'Vidéo']];
+/* ---------- réglages mémorisés par type d'établissement ---------- */
+const getProfiles = () => { try { return JSON.parse(localStorage.getItem('ng_profiles')) || {}; } catch (e) { return {}; } };
+const TYPE_LAB = { restaurant: 'restaurant / bar', hebergement: 'hébergement', commerce: 'commerce' };
+function saveProfile() {
+  const f = cur.fiche, p = getProfiles(), cl = a => (a || []).map(b => ({ k: b.k, t: b.t, u: '' }));
+  p[f.type || 'restaurant'] = { pstyle: Object.assign({}, f.pstyle || {}), police: f.police || 'serif', logoForme: f.logoForme || 'rond', bar: cl(cur.bar), bar2: cl(cur.bar2) };
+  try { localStorage.setItem('ng_profiles', JSON.stringify(p)); } catch (e) { }
+}
+function applyProfile() {
+  const f = cur.fiche; if (!f || f._prof) return false; f._prof = 1;
+  const p = getProfiles()[f.type || 'restaurant']; if (!p) return false;
+  const hasC = parseCarte(f.carteTxt).length, fix = a => (a || []).map(b => !hasC && b.t === 'page:carte' ? { k: 'reserver', t: 'page:reservation', u: '' } : { k: b.k, t: b.t, u: '' });
+  f.pstyle = Object.assign({}, p.pstyle); f.police = p.police; f.logoForme = p.logoForme;
+  if (p.bar && p.bar.length) cur.bar = fix(p.bar); if (p.bar2 && p.bar2.length) cur.bar2 = fix(p.bar2);
+  return true;
+}
 function barDefault(f, n) {
   if (n === 2) return [['video', 'page:video'], ['photos', 'page:galerie'], ['panoramas', 'none'], ['son', 'url'], ['maison', 'bar:1']].map(([k, t]) => ({ k, t, u: '' }));
   const hasC = parseCarte(f.carteTxt).length, t = f.type;
@@ -448,6 +464,7 @@ async function publish(k, btn) {
 function bind() {
   document.querySelectorAll('[data-l]').forEach(e => e.oninput = () => { cur.links[e.dataset.l] = e.value.trim(); save(); });
   $('#go').onclick = search;
+  { const ps = $('#psave'); if (ps) ps.onclick = () => { saveProfile(); render(); const b2 = $('#psave'); if (b2) b2.textContent = '✔ Réglages mémorisés'; }; }
   { const bt = $('#cim'), fi = $('#cif'); if (bt) { bt.onclick = () => fi.click(); fi.onchange = () => { const l = [...fi.files]; fi.value = ''; if (l.length) importCarte(l, bt); }; } }
   { const a = $('#nch'), b = $('#nchr'); if (a) a.onclick = () => newCharte(false); if (b) b.onclick = () => newCharte(true); }
   const hsrc = async (html, add) => { if (!html || html.length < 200) return; let r = parseHtml(html); if (add && cur.src) r = { text: (cur.src.text + '\n\n=== PAGE SUIVANTE ===\n' + r.text).slice(0, 60000), images: [...new Set([...cur.src.images, ...r.images])].slice(0, 80) }; cur.src = r; save(); $('#hs').innerHTML = `✔ ${r.images.length} image(s) et ${r.text.length} caractères de texte détectés <a href="#" id="hx">effacer</a>`; $('#hh').value = ''; hx(); };
@@ -579,7 +596,7 @@ async function search() {
     });
     { const others = (await dbAll()).filter(p => !p.del && p.id !== cur.id), gp = uniquePalette(cur.fiche, others), th = /^#[0-9a-f]{6}$/i.test(r.theme || '') && satOf(r.theme) > .3 && !/^#(2b899d|1f2a44)$/i.test(r.theme) ? r.theme : null;
       Object.assign(cur.fiche, th ? { c2: th, c1: mix(th, '#000000', .72), c3: mix(th, '#ffffff', .5) } : gp); cur.fiche.style = leastUsedStyle(cur.fiche, others); }
-    cur.notes = x.notes || []; cur.fiche._trh = '';
+    cur.notes = x.notes || []; cur.fiche._trh = ''; applyProfile(); cur._tab = 'pages';
     save(); render(); msg('Fiche trouvée. Récupération du logo et des photos…', 'i');
     // logo : on essaie tous les candidats (site, réseaux, favicon), puis monogramme rond en dernier recours
     if (!cur.logo || cur.logoAuto) { let got = false;
