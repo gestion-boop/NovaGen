@@ -237,7 +237,7 @@ async function importCarte(list, btn) {
 const BAR_LAB = { menu: 'Carte', reserver: 'Réserver', photos: 'Photos', appeler: 'Appeler', infos: 'Infos', localisation: 'Plan', contact: 'Contact', plan: 'Plan', panoramas: 'Panoramas', video: 'Vidéo', son: 'Son', pleinecran: 'Plein écran', vr: 'VR', maison: 'Retour', burger: 'Plus', lit: 'Chambres', wifi: 'Wi-Fi', cafe: 'Café', vin: 'Vins', piscine: 'Piscine', tente: 'Camping', gateau: 'Pâtisserie', velo: 'Vélo', play: 'Lecture' };
 const BAR_PG = [['intro', 'Intro'], ['infos', 'Point Info'], ['galerie', 'Galerie'], ['carte', 'Carte'], ['reservation', 'Réservation'], ['video', 'Vidéo']];
 function barDefault(f, n) {
-  if (n === 2) return [['video', 'page:video'], ['photos', 'page:galerie'], ['panoramas', 'url'], ['son', 'url'], ['maison', 'bar:1']].map(([k, t]) => ({ k, t, u: '' }));
+  if (n === 2) return [['video', 'page:video'], ['photos', 'page:galerie'], ['panoramas', 'none'], ['son', 'url'], ['maison', 'bar:1']].map(([k, t]) => ({ k, t, u: '' }));
   const hasC = parseCarte(f.carteTxt).length, t = f.type;
   const L = t === 'hebergement' ? [['infos', 'page:infos'], ['photos', 'page:galerie'], ['reserver', 'page:reservation'], ['appeler', 'tel'], ['localisation', 'map']]
     : t === 'commerce' ? [['infos', 'page:infos'], ['photos', 'page:galerie'], hasC ? ['menu', 'page:carte'] : ['reserver', 'page:reservation'], ['appeler', 'tel'], ['localisation', 'map']]
@@ -250,6 +250,7 @@ function barLink(b) {
   if (b.t === 'tel') return f.tel ? 'tel:' + String(f.tel).replace(/[^\d+]/g, '') : '';
   if (b.t === 'mail') return f.email ? 'mailto:' + f.email : '';
   if (b.t === 'map') return f.adresse ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(f.nom + ' ' + f.adresse) : '';
+  if (b.t === 'none') return '(aucun lien : vue panoramique des images)';
   if (b.t === 'full') return '(bascule en plein écran)';
   if (b.t.startsWith('bar:')) return '(va à la page ' + b.t.slice(4) + ' de la barre)';
   return b.u || '';
@@ -258,13 +259,14 @@ let barView = 1;
 function renderBar() {
   const el = $('#bar'); if (!el) return; const f = cur.fiche; if (!cur.bar) cur.bar = barDefault(f, 1); if (!cur.bar2) cur.bar2 = barDefault(f, 2);
   if (!cur.barV2) { cur.barV2 = 1; cur.bar = cur.bar.filter(b => !(b.k === 'burger' && b.t === 'bar:2')); cur.bar2 = cur.bar2.filter(b => b.t !== 'full'); save(); }
+  cur.bar2.forEach(b => { if (b.k === 'panoramas' && b.t === 'url' && !b.u) b.t = 'none'; });
   const pages = [null, cur.bar, cur.bar2], svgUrl = (k, st) => 'data:image/svg+xml;utf8,' + encodeURIComponent(btnSvg(f, ICONS[k] ? k : 'infos', st, 120));
   const bgI = cur.barBg != null && cur.barBg >= 0 && cur.barBg < cur.photos.length ? cur.barBg : Math.min(cur.fond || 0, cur.photos.length - 1);
   const bg = cur.barBgFile ? URL.createObjectURL(cur.barBgFile) : cur.photos.length ? URL.createObjectURL(cur.photos[bgI].blob) : '';
   const c2 = f.c2 || '#2b899d', c3 = f.c3 || '#e0a040', auto = `radial-gradient(circle at 18% 24%, ${c3}66 0, transparent 34%), radial-gradient(circle at 82% 70%, ${c2}aa 0, transparent 40%), radial-gradient(circle at 60% 18%, #ffffff22 0, transparent 26%), linear-gradient(135deg, ${c2}, #0d1014)`;
   const thumbs = cur.photos.map((ph, i) => `<img src="${URL.createObjectURL(ph.blob)}" data-bgp="${i}" class="${!cur.barBgFile && i === bgI ? 'on' : ''}" title="Photo ${i + 1}">`).join('');
   const imgs = k => `<img class="n" src="${svgUrl(k, 'normal')}"><img class="h" src="${svgUrl(k, 'survol')}"><img class="p" src="${svgUrl(k, 'presse')}">`;
-  const tsel = (b, pg, i) => `<select data-bt="${pg}:${i}"><optgroup label="Page NovaGen">${BAR_PG.map(([k, n]) => `<option value="page:${k}" ${b.t === 'page:' + k ? 'selected' : ''}>${n}</option>`).join('')}</optgroup><optgroup label="Autre">${[['tel', 'Téléphone'], ['mail', 'E-mail'], ['map', 'Plan (Google Maps)'], ['url', 'Lien libre…'], ['full', 'Plein écran'], ['bar:1', 'Barre : page 1'], ['bar:2', 'Barre : page 2']].map(([v, n]) => `<option value="${v}" ${b.t === v ? 'selected' : ''}>${n}</option>`).join('')}</optgroup></select>`;
+  const tsel = (b, pg, i) => `<select data-bt="${pg}:${i}"><optgroup label="Page NovaGen">${BAR_PG.map(([k, n]) => `<option value="page:${k}" ${b.t === 'page:' + k ? 'selected' : ''}>${n}</option>`).join('')}</optgroup><optgroup label="Autre">${[['tel', 'Téléphone'], ['mail', 'E-mail'], ['map', 'Plan (Google Maps)'], ['url', 'Lien libre…'], ['none', 'Aucun lien'], ['full', 'Plein écran'], ['bar:1', 'Barre : page 1'], ['bar:2', 'Barre : page 2']].map(([v, n]) => `<option value="${v}" ${b.t === v ? 'selected' : ''}>${n}</option>`).join('')}</optgroup></select>`;
   const row = (b, pg, i) => `<div class="br"><span class="bn">${i + 1}</span><img src="${svgUrl(b.k, 'normal')}" width="34"><select data-bk="${pg}:${i}">${Object.keys(BAR_LAB).filter(k => ICONS[k]).map(k => `<option value="${k}" ${b.k === k ? 'selected' : ''}>${BAR_LAB[k]}</option>`).join('')}</select>${tsel(b, pg, i)}
    ${b.t === 'url' ? `<input data-bu="${pg}:${i}" value="${esc(b.u)}" placeholder="https://…" style="margin:0;flex:1;min-width:160px">` : `<span class="bl">${esc(barLink(b) || '— non renseigné —')}</span>`}
    <button class="b o s" data-bup="${pg}:${i}">↑</button><button class="b o s" data-bdn="${pg}:${i}">↓</button><button class="b o s" data-brm="${pg}:${i}">✕</button></div>`;
@@ -278,6 +280,7 @@ function renderBar() {
   const full = on => { const bs = $('#bs'); bs.classList.toggle('full', on); document.body.style.overflow = on ? 'hidden' : ''; if (on) { bs.requestFullscreen && bs.requestFullscreen().catch(() => {}); } else if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); if (!on) { $('#bso').classList.remove('on'); $('#bsf').srcdoc = ''; } };
   el.querySelectorAll('[data-bi]').forEach(bt => bt.onclick = async () => {
     const b = pages[barView][+bt.dataset.bi], l = barLink(b);
+    if (b.t === 'none') { msg('Panorama : vue des différentes images, aucun lien.'); return; }
     if (b.t === 'full') { full(!$('#bs').classList.contains('full')); return; }
     if (b.t.startsWith('bar:')) { barView = +b.t.slice(4); renderBar(); if (document.fullscreenElement || true) { } return; }
     if (b.t.startsWith('page:')) {
@@ -296,7 +299,7 @@ function renderBar() {
   if ($('#bga')) $('#bga').onclick = () => { cur.barBg = null; cur.barBgFile = null; save2(); };
   $('#bfs').onclick = () => full(!$('#bs').classList.contains('full'));
   if (!window._barEsc) { window._barEsc = true; const out = () => { const bs = $('#bs'); if (bs && bs.classList.contains('full')) { bs.classList.remove('full'); document.body.style.overflow = ''; } }; document.addEventListener('keydown', e => { if (e.key === 'Escape') out(); }); document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) out(); }); }
-  const AUTO = { menu: 'page:carte', reserver: 'page:reservation', photos: 'page:galerie', infos: 'page:infos', video: 'page:video', appeler: 'tel', contact: 'mail', localisation: 'map', plan: 'map', pleinecran: 'full', maison: 'bar:1', burger: 'bar:2', play: 'page:video', panoramas: 'url', son: 'url' };
+  const AUTO = { menu: 'page:carte', reserver: 'page:reservation', photos: 'page:galerie', infos: 'page:infos', video: 'page:video', appeler: 'tel', contact: 'mail', localisation: 'map', plan: 'map', pleinecran: 'full', maison: 'bar:1', burger: 'bar:2', play: 'page:video', panoramas: 'none', son: 'url' };
   el.querySelectorAll('[data-bk]').forEach(x => x.onchange = () => { const [L, i] = at(x.dataset.bk); L[i].k = x.value; if (AUTO[x.value]) L[i].t = AUTO[x.value]; save2(); });
   /* glisser-déposer des boutons directement sur la barre : le lien suit le bouton */
   let dragI = null; el.querySelectorAll('.bsc .bb').forEach(bt => { bt.draggable = true; bt.ondragstart = e => { dragI = +bt.dataset.bi; e.dataTransfer.effectAllowed = 'move'; }; bt.ondragover = e => e.preventDefault(); bt.ondrop = e => { e.preventDefault(); const j = +bt.dataset.bi; if (dragI == null || dragI === j) return; const L = pages[barView], [m] = L.splice(dragI, 1); L.splice(j, 0, m); dragI = null; save2(); }; });
@@ -357,11 +360,12 @@ let vproj = null, vperr = '', vload = false;
 const KW = { intro: ['intro'], infos: ['info', 'point'], galerie: ['galerie', 'gallery', 'photo'], carte: ['carte', 'menu'], reservation: ['resa', 'reserv', 'book'], video: ['video', 'signature', 'flambadou'] };
 function guess(k) { if (!vproj) return defProject(k); const s = slug().toLowerCase(), m = vproj.filter(p => p.name.replace(/-|et/g, '').includes(s.replace(/et/g, '')) && KW[k].some(w => p.name.includes(w))); return m.length === 1 ? m[0].name : defProject(k); }
 async function loadProjects() { if (vload) return; vload = true; try { vproj = (await api('/api/publish', { mode: 'projects' })).projects || []; } catch (e) { vproj = []; vperr = e.message; } if ($('#out')) renderOut(); }
+const PSN = { intro: ['Classique', 'Ardoise', 'Moderne', 'Magazine', 'Cinéma (Gaïa)', 'Rideau'], galerie: ['Mosaïque', 'Polaroïds', 'Moderne', 'Magazine', 'Diaporama', 'Défilé'], infos: ['Classique', 'Ardoise', 'Moderne', 'Magazine', 'Signature (Mioza)', 'Vitrine (Gaïa)'] };
 const projOf = k => ((cur.vp || {})[k] || guess(k)).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
 const PG = ['intro', 'infos', 'galerie', 'carte', 'reservation'];
 /* 🎲 autre proposition : nouveau style (et nouvelle photo de fond) pour UNE page, puis aperçu */
 function randomize(k) {
-  const f = cur.fiche, now = styleOfPg(f, k), opts = (k === 'infos' ? ['1', '2', '3', '4', '5', '6'] : ['intro', 'carte'].includes(k) ? ['1', '2', '3', '4', '5'] : ['1', '2', '3', '4']).filter(x => x !== now), pick = opts[Math.floor(Math.random() * opts.length)];
+  const f = cur.fiche, now = styleOfPg(f, k), opts = (['intro', 'infos', 'galerie'].includes(k) ? ['1', '2', '3', '4', '5', '6'] : k === 'carte' ? ['1', '2', '3', '4', '5'] : ['1', '2', '3', '4']).filter(x => x !== now), pick = opts[Math.floor(Math.random() * opts.length)];
   f.pstyle = Object.assign({}, f.pstyle, { [k]: pick });
   if (['intro', 'infos', 'carte'].includes(k) && cur.photos.length > 1) { const was = (f.pfond && f.pfond[k] != null) ? +f.pfond[k] : cur.fond, c = cur.photos.map((_, i) => i).filter(i => i !== was); f.pfond = Object.assign({}, f.pfond, { [k]: c[Math.floor(Math.random() * c.length)] }); }
   save(); renderOut(); preview(k);
@@ -383,7 +387,10 @@ function renderOut() {
    <div class="row"><button class="b o s" data-pv="${k}" ${off ? 'disabled' : ''}>👁 Aperçu</button><button class="b o s" data-dl="${k}" ${off ? 'disabled' : ''}>⬇ ZIP</button>${PUB.includes(k) && !off ? `<button class="b s" data-pub="${k}">🚀 Déployer</button>` : ''}</div></div>
    ${PUB.includes(k) && !off ? `<div class="lk" id="lk-${k}" style="font-size:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"></div>` : ''}
    ${(PUB.includes(k) || PG.includes(k)) && !off ? `<details class="opt"><summary>⚙ Réglages de cette page</summary>${PUB.includes(k) ? `<label style="margin:8px 0 0;font-size:11px">Projet Vercel à mettre à jour<input data-vp="${k}" list="vpl" value="${esc(projOf(k))}" style="margin-top:3px;padding:7px 9px;font-size:12.5px"></label><div class="vs" id="vs-${k}"></div>` : ''}${PG.includes(k) ? `<div style="padding-top:8px"><small id="sty-${k}" style="display:block;margin-bottom:5px"></small><textarea data-pc="${k}" rows="2" placeholder="Un changement ? ex. fond plus sombre, titres plus gros, carte plus aérée…" style="margin:0;min-height:0;font-size:12.5px;padding:7px 9px"></textarea><div class="row" style="margin-top:6px"><button class="b s" data-pa="${k}">Appliquer</button><button class="b o s" data-rnd="${k}" title="Propose un autre design pour cette page">🎲 Autre proposition</button></div><div class="vs" id="pm-${k}"></div></div>` : ''}</details>` : ''}<div class="pl" id="pl-${k}"></div></div>`).join('');
-  const stl = k => { const el = $('#sty-' + k); if (el) el.innerHTML = 'Style : <b>' + ((STYLES.find(x => x[0] === styleOfPg(Object.assign({}, f, { _fond: cur.photos.length > 0, _names: cur.photos.map(() => 0) }), k)) || [])[1] || '') + '</b>' + (f.pstyle && f.pstyle[k] ? ' <a href="#" data-auto="' + k + '">↺ auto</a>' : ''); }; PG.forEach(stl);
+  const stl = k => { const el = $('#sty-' + k); if (!el) return; const n = +styleOfPg(Object.assign({}, f, { _fond: cur.photos.length > 0, _names: cur.photos.map(() => 0) }), k), nm = (PSN[k] && PSN[k][n - 1]) || (STYLES.find(x => x[0] === String(n)) || [])[1] || ''; el.innerHTML = 'Style : <b>' + nm + '</b>' + (f.pstyle && f.pstyle[k] ? ' <a href="#" data-auto="' + k + '">↺ auto</a>' : ''); }; PG.forEach(stl);
+  const pickers = () => ['intro', 'infos', 'galerie'].forEach(k => { const el = $('#sty-' + k); if (!el) return; const now = styleOfPg(Object.assign({}, f, { _fond: cur.photos.length > 0, _names: cur.photos.map(() => 0) }), k); el.insertAdjacentHTML('afterend', '<div class="pk" data-pkr="' + k + '">' + PSN[k].map((n, i) => '<button class="b o s ' + (String(i + 1) === now ? 'on' : '') + '" data-ps="' + k + ':' + (i + 1) + '" title="' + n + '">' + (i + 1) + '<small>' + n + '</small></button>').join('') + '</div>'); });
+  pickers();
+  o.querySelectorAll('[data-ps]').forEach(b => b.onclick = () => { const [k, n] = b.dataset.ps.split(':'); f.pstyle = Object.assign({}, f.pstyle, { [k]: n }); save(); renderOut(); preview(k); });
   o.querySelectorAll('[data-auto]').forEach(a => a.onclick = e => { e.preventDefault(); delete f.pstyle[a.dataset.auto]; if (f.pfond) delete f.pfond[a.dataset.auto]; save(); renderOut(); });
   o.querySelectorAll('[data-rnd]').forEach(b => b.onclick = () => randomize(b.dataset.rnd));
   o.querySelectorAll('[data-pa]').forEach(b => b.onclick = () => applyComment(b.dataset.pa, b));

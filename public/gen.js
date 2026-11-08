@@ -114,8 +114,8 @@ function genPalette(nom, type) { const H = hashStr(nom + '|' + (type || '')), p 
 const STYLES = [['1', 'Classique'], ['2', 'Ardoise'], ['3', 'Moderne'], ['4', 'Magazine'], ['5', 'Signature (modèles Mioza / Gaïa)'], ['6', 'Vitrine (modèle Gaïa, Point Info)']];
 const SPECIAL_PG = { intro: 1, infos: 1, carte: 1 };
 const styleOf = f => {
-  const pg = f._pg, sp = pg && SPECIAL_PG[pg], ok = (v, n) => ['1', '2', '3', '4', '5', '6'].slice(0, n).includes(String(v)), x = pg && f.pstyle && f.pstyle[pg];
-  if (ok(x, sp ? 6 : 4)) return String(x);
+  const pg = f._pg, sp = pg && SPECIAL_PG[pg], six = sp || pg === 'galerie', ok = (v, n) => ['1', '2', '3', '4', '5', '6'].slice(0, n).includes(String(v)), x = pg && f.pstyle && f.pstyle[pg];
+  if (ok(x, six ? 6 : 4)) return String(x);
   if (sp && f._fond && f.type !== 'hebergement') return pg === 'infos' ? ((hashStr(f.nom) % 2) && (f._names || []).length >= 2 ? '6' : '5') : '5';
   return ok(f.style, 4) ? String(f.style) : String(hashStr(f.nom) % 4 + 1);
 };
@@ -260,6 +260,9 @@ body.s2 .g{columns:auto;display:grid;grid-template-columns:repeat(auto-fill,minm
 body.s3 .g{columns:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}body.s3 .g a{margin:0;border-radius:18px;box-shadow:none}body.s3 .g a:first-child{grid-column:span 2;grid-row:span 2}body.s3 .g img{height:100%;min-height:150px;aspect-ratio:4/3;object-fit:cover}body.s3 .g a:first-child img{aspect-ratio:auto}
 body.s4 .g{columns:auto;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-flow:dense;gap:4px}body.s4 .g a{margin:0;border-radius:0;box-shadow:none}body.s4 .g a:nth-child(5n+1){grid-column:span 2;grid-row:span 2}body.s4 .g a:nth-child(7n+4){grid-row:span 2}body.s4 .g img{height:100%;min-height:150px;aspect-ratio:1;object-fit:cover}body.s4 .wrap{max-width:1100px}
 @media(max-width:640px){body.s3 .g,body.s4 .g{grid-template-columns:repeat(2,1fr)}body.s4 .g a:nth-child(5n+1){grid-column:span 2}}
+body.s5 .g{columns:auto;display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:thin}body.s5 .g a{margin:0;flex:0 0 clamp(84px,14vw,130px);height:clamp(60px,10vw,90px);border-radius:10px;box-shadow:none;opacity:.55;transition:.25s;border:2px solid transparent}body.s5 .g a.on{opacity:1;border-color:var(--c2)}body.s5 .g img{height:100%;object-fit:cover}
+.hero{position:relative;height:min(62vh,560px);border-radius:20px;overflow:hidden;margin-bottom:12px;background:#111;box-shadow:0 18px 44px rgba(0,0,0,.35);cursor:zoom-in}.hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.06);transition:opacity .9s,transform 6s ease-out}.hero img.on{opacity:1;transform:scale(1)}.hero .c{position:absolute;right:14px;bottom:12px;color:#fff;background:rgba(0,0,0,.45);padding:4px 12px;border-radius:20px;font:700 12px sans-serif}
+body.s6 .g{columns:auto;display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:8px 6vw 18px;margin:0 -6vw;scrollbar-width:none}body.s6 .g::-webkit-scrollbar{display:none}body.s6 .g a{margin:0;flex:0 0 min(78vw,440px);height:min(64vh,560px);scroll-snap-align:center;border-radius:28px;box-shadow:0 22px 46px rgba(0,0,0,.3)}body.s6 .g a:nth-child(even){margin-top:34px;height:min(58vh,510px)}body.s6 .g img{height:100%;object-fit:cover;transition:transform .8s}body.s6 .g a:hover img{transform:scale(1.06)}
 #lb{position:fixed;inset:0;z-index:99;background:rgba(10,10,10,.93);display:none;align-items:center;justify-content:center;touch-action:pan-y}#lb.on{display:flex}#lb img{max-width:94vw;max-height:88vh;border-radius:10px}
 #lb button{position:absolute;background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:50%;width:48px;height:48px;font-size:24px;cursor:pointer}#lb .x{top:16px;right:16px}#lb .p{left:14px;top:50%}#lb .n{right:14px;top:50%}#lb .c{position:absolute;bottom:18px;color:#fff;font:600 13px Montserrat}`;
   const body = header(f, ctx, T.galerie, false) + `<div class="wrap"><div class="g">${photos.map((p, i) => `<a href="assets/img/${p}" data-n="${i}"><img loading="lazy" src="assets/img/${p}" alt="${esc(f.nom)} ${i + 1}"></a>`).join('')}</div></div><div id="lb"><button class="x" aria-label="x">✕</button><button class="p">‹</button><img alt=""><button class="n">›</button><div class="c"></div></div>`;
@@ -267,6 +270,7 @@ body.s4 .g{columns:auto;display:grid;grid-template-columns:repeat(4,1fr);grid-au
 function show(i){k=(i+A.length)%A.length;im.src=A[k].href;c.textContent=(k+1)+' / '+A.length;lb.classList.add('on')}
 A.forEach((a,i)=>a.onclick=e=>{e.preventDefault();show(i)});lb.querySelector('.x').onclick=()=>lb.classList.remove('on');lb.querySelector('.p').onclick=()=>show(k-1);lb.querySelector('.n').onclick=()=>show(k+1);
 lb.onclick=e=>{if(e.target===lb)lb.classList.remove('on')};document.addEventListener('keydown',e=>{if(!lb.classList.contains('on'))return;if(e.key==='Escape')lb.classList.remove('on');if(e.key==='ArrowLeft')show(k-1);if(e.key==='ArrowRight')show(k+1)});
+if(document.body.classList.contains('s5')){const g=document.querySelector('.g'),h=document.createElement('div');h.className='hero';h.innerHTML=A.map(a=>'<img src="'+a.href+'" alt="">').join('')+'<span class="c"></span>';g.parentNode.insertBefore(h,g);const H=[...h.querySelectorAll('img')];let cur=0,tm;function go(i){cur=(i+A.length)%A.length;H.forEach((x,j)=>x.classList.toggle('on',j===cur));A.forEach((a,j)=>a.classList.toggle('on',j===cur));h.querySelector('.c').textContent=(cur+1)+' / '+A.length;const t=A[cur];g.scrollTo({left:t.offsetLeft-g.clientWidth/2+t.clientWidth/2,behavior:'smooth'})}function auto(){clearInterval(tm);tm=setInterval(()=>go(cur+1),4200)}A.forEach((a,i)=>a.onclick=e=>{e.preventDefault();go(i);auto()});h.onclick=()=>show(cur);go(0);auto()}
 let sx=0;lb.addEventListener('touchstart',e=>sx=e.touches[0].clientX);lb.addEventListener('touchend',e=>{const d=e.changedTouches[0].clientX-sx;if(Math.abs(d)>50)show(k+(d<0?1:-1))})})();`;
   return { 'index.html': shell(f, ctx, { title: f.nom + ' — Galerie', css, body, js }) };
 }
@@ -313,7 +317,7 @@ $('bc').onclick=async()=>{try{await navigator.clipboard.writeText(txt())}catch(e
 }
 
 function pageIntro(f, hasBg) {
-  const cin = +styleOf(f) >= 5;
+  const cin = +styleOf(f) === 5, rid = +styleOf(f) === 6;
   const D = mk(), L = o => JSON.stringify(obj4(o));
   const c1 = mix(f.c1, '#000000', .35), hl = lum(f.c2) > .4 ? f.c2 : mix(f.c2, '#ffffff', .55);
   const logo = f._logo ? (true ? `<img class="lg" src="assets/img/${f._logo}" alt="">` : `<div class="lgw"><img src="assets/img/${f._logo}" alt="${esc(f.nom)}"></div>`) : `<div class="lgw"><div class="fb">${esc(f.nom)}</div></div>`;
@@ -339,7 +343,7 @@ body::after{content:"";position:fixed;inset:2.4vmin;border:1px solid ${hl}77;bor
 @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 body.fin{animation:fin .8s forwards}@keyframes fin{to{opacity:0}}
 @media(orientation:portrait){.lg{width:58vmin;height:58vmin}.lgw img{width:68vw}.sub{font-size:2.8vmin}.sig{flex-direction:column;gap:1.4vmin}.sig .v{font-size:2.8vmin}.sig .n{font-size:5.6vmin}}
-${cin ? introCinemaCss(f, hl) : ''}</style></head><body class="s${styleOf(f)}"><div class="bg"></div><div class="c">${cin ? `<div class="lw">${logo}<i class="ring r1"></i><i class="ring r2"></i></div>` : logo}<h1 class="vh">${esc(f.nom)}</h1><div class="hello" id="hi">${esc(T.bienvenue.fr)}</div><div class="sub" id="sb">${esc(obj4(sub).fr)}</div></div>
+${cin ? introCinemaCss(f, hl) : ''}${rid ? introRideauCss(f, hl) : ''}</style></head><body class="s${styleOf(f)}"><div class="bg"></div>${rid ? '<i class="dr l"></i><i class="dr r"></i><i class="dl"></i>' : ''}<div class="c">${cin ? `<div class="lw">${logo}<i class="ring r1"></i><i class="ring r2"></i></div>` : logo}<h1 class="vh">${esc(f.nom)}</h1><div class="hello" id="hi">${esc(T.bienvenue.fr)}</div><div class="sub" id="sb">${esc(obj4(sub).fr)}</div></div>
 <div class="sig"><span class="v" id="vi">${esc(T.visite.fr)}</span><span class="n"><i>by</i> NovaVisio</span></div><svg id="iris" style="position:fixed;inset:0;width:100%;height:100%;z-index:50;pointer-events:none"><defs>
 <linearGradient id="ng" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#345C95"/><stop offset=".55" stop-color="#2B899D"/><stop offset="1" stop-color="#125C68"/></linearGradient>
 <mask id="mk"><rect id="mr" fill="#fff"/><polygon id="hole" fill="#000"/></mask></defs>

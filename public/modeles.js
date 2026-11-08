@@ -160,3 +160,13 @@ function introCinemaCss(f, hl) {
 .bg{animation:bg 4.6s .2s ease-out forwards,kb 7s .2s ease-out forwards}@keyframes kb{from{filter:brightness(.8) saturate(1.1)}to{filter:brightness(1) saturate(1.15)}}`;
 }
 const introCinemaJs = `(function(){const h=document.getElementById('hi');if(!h)return;h.classList.add('lt');const s=h.textContent;h.innerHTML=[...s].map((c,i)=>'<span style="animation-delay:'+(1.7+i*.05).toFixed(2)+'s">'+(c===' '?'&nbsp;':c)+'</span>').join('')})();`;
+
+/* ---- intro « rideau » (proposition 6) : deux panneaux s'ouvrent, logo en zoom doux, filet doré qui se trace ---- */
+function introRideauCss(f, hl) {
+  const pn = mix(f.c1, '#000000', .55);
+  return `.dr{position:fixed;top:0;bottom:0;width:50.4%;z-index:20;background:linear-gradient(160deg,${mix(f.c2, '#000000', .45)},${pn});animation:dro 1.5s cubic-bezier(.76,0,.24,1) .7s forwards}.dr.l{left:0;--x:-101%;border-right:2px solid ${hl}}.dr.r{right:0;--x:101%;border-left:2px solid ${hl}}
+.dl{position:fixed;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;z-index:21;background:linear-gradient(${hl},transparent);transform:scaleY(0);transform-origin:top;animation:dlx .7s ease-out forwards,dlo .3s 1.4s forwards}
+.bg{animation:bg 1.6s 1.1s forwards,kb 18s 1.1s ease-out forwards}.lg,.lgw{animation:zin 1.7s 1.4s cubic-bezier(.2,.8,.2,1) forwards;transform:scale(1.5);filter:blur(10px)}
+.hello{animation:up .9s 2.5s forwards}.sub{animation:up .9s 2.8s forwards}.sub::before{content:"";display:block;width:0;height:1px;background:${hl};margin:0 auto 1.6vmin;animation:ln 1s 2.6s forwards}
+@keyframes dro{to{transform:translateX(var(--x))}}@keyframes dlx{to{transform:scaleY(1)}}@keyframes dlo{to{opacity:0}}@keyframes kb{to{transform:scale(1.0)}}@keyframes zin{to{opacity:1;transform:none;filter:none}}@keyframes ln{to{width:min(34vmin,260px)}}`;
+}
