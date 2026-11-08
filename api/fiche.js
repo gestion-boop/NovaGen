@@ -119,6 +119,23 @@ ${SCHEMA}`;
   }
   return { fiche: f, photos, logos, theme };
 }
+async function voiceScript(b) {
+  const d = b.fiche || {}, dur = Math.min(90, Math.max(15, +b.dur || 45)), words = Math.round(dur * 2.3), pick = k => { const v = d[k]; return v && typeof v === 'object' && !Array.isArray(v) ? (v.fr || '') : v; };
+  const data = { nom: d.nom, type: d.type, ville: d.ville, adresse: d.adresse, telephone: d.tel, site: d.site, accroche: pick('slogan'), description_courte: pick('descCourte'), description: String(pick('description') || '').slice(0, 1500), services: (d.services || []).map(s => typeof s === 'object' ? (s.fr || s.nom || '') : s).filter(Boolean).slice(0, 12), horaires: d.horaires, carte_extrait: String(d.carteTxt || '').replace(/\|[^|\n]*\d+[.,]?\d*\s*€?[^|\n]*/g, '').slice(0, 1200), avis: d.avis };
+  const j = await claude({ model: MODEL(), max_tokens: 1500, messages: [{ role: 'user', content: `Tu es concepteur-rédacteur publicitaire (spots radio, Reels, TikTok). Écris le texte de la voix off d'une publicité vidéo de ${dur} secondes pour cet établissement, en français parlé naturel, chaleureux et vendeur.
+
+Structure :
+1. HOOK (1 phrase) : une question ou un bénéfice concret qui accroche dès la première seconde, adapté au lieu (pas de formule générique type « Vous cherchez la bonne adresse »).
+2. DÉCOUVERTE : le nom et ce que c'est, en une phrase vivante.
+3. DÉMONSTRATION : 2 ou 3 atouts concrets et sensoriels tirés UNIQUEMENT des données (plats ou spécialités, ambiance, terrasse, équipements, savoir-faire…), en vraies phrases.
+4. DIFFÉRENCIATION : pourquoi venir ici plutôt qu'ailleurs, sans superlatif creux.
+5. APPEL À L'ACTION unique et clair (réserver par téléphone, ou sur le site, ou venir à l'adresse), puis signature courte : le nom et la ville.
+
+Règles : environ ${words} mots (±10 %) ; phrases courtes, faciles à dire ; jamais de listes de mots séparés par des virgules ni de mots avec majuscule au milieu de phrase ; aucune répétition ; AUCUN prix ; n'invente aucun fait absent des données ; écris le téléphone en chiffres groupés par deux ; pas de balises, pas de titres, pas d'emoji, pas de guillemets. Une phrase ou deux par paragraphe, paragraphes séparés par une ligne vide. Réponds UNIQUEMENT avec le texte.
+
+DONNÉES : ${JSON.stringify(data)}` }] });
+  return { text: textOf(j).trim().replace(/^["«»\s]+|["«»\s]+$/g, '') };
+}
 async function voiceTags(b) {
   const t = String(b.text || '').replace(/\[[^\]]{1,30}\]\s*/g, '').trim().slice(0, 4500); if (!t) throw new Error('texte vide');
   const j = await claude({ model: MODEL(), max_tokens: 4000, messages: [{ role: 'user', content: 'Voici un texte de voix off publicitaire en français, qui sera lu par ElevenLabs v3. Ajoute des balises audio ElevenLabs v3 entre crochets, en anglais, pour une lecture vivante et naturelle : émotions ([excited], [warmly], [happy], [curious], [thoughtful], [confident], [cheerfully], [softly]) et rythme ([short pause], [pause]). Une balise toutes les 1 à 3 phrases maximum, placée juste avant le passage concerné ; pas de balise de son (rires, soupirs). Ne change AUCUN mot du texte, ni la ponctuation, ni l\'ordre. Réponds UNIQUEMENT avec le texte balisé, sans commentaire.\n\nTEXTE :\n' + t }] });
@@ -228,6 +245,7 @@ module.exports = async (req, res) => {
     if (b.mode === 'assist') return res.json(await assist(b));
     if (b.mode === 'translate') return res.json(await translate(b));
     if (b.mode === 'voicetags') return res.json(await voiceTags(b));
+    if (b.mode === 'voicescript') return res.json(await voiceScript(b));
     return res.json(await search(b));
   } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 };
