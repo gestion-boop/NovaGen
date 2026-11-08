@@ -2,14 +2,14 @@
 module.exports = async (req, res) => {
   try {
     if (process.env.APP_PASSWORD && req.headers['x-pass'] !== process.env.APP_PASSWORD) return res.status(401).json({ error: 'Mot de passe incorrect' });
-    const KEY = process.env.ELEVENLABS_API_KEY || '';
+    const hk = String(req.headers['x-el-key'] || '').trim(), KEY = (/^[A-Za-z0-9_-]{20,120}$/.test(hk) ? hk : '') || process.env.ELEVENLABS_API_KEY || '';
     const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     if (b.mode === 'status') return res.json({ configured: !!KEY });
-    if (!KEY) return res.status(501).json({ error: 'Clé ElevenLabs absente : ajoute ELEVENLABS_API_KEY dans Vercel (Settings → Environment Variables) puis redéploie.' });
+    if (!KEY) return res.status(501).json({ error: 'Clé ElevenLabs absente : clique sur 🔑 et colle ta clé API ElevenLabs.' });
     const H = { 'xi-api-key': KEY };
     if (b.mode === 'voices') {
       const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: H }), j = await r.json().catch(() => ({}));
-      if (!r.ok) return res.status(r.status).json({ error: (j.detail && (j.detail.message || j.detail)) || 'ElevenLabs ' + r.status });
+      if (!r.ok) return res.status(r.status === 401 ? 400 : r.status).json({ error: r.status === 401 ? 'Clé ElevenLabs refusée (vérifie-la, ou ses droits « Voices »).' : ((j.detail && (j.detail.message || j.detail)) || 'ElevenLabs ' + r.status) });
       return res.json({ voices: (j.voices || []).map(v => ({ id: v.voice_id, name: v.name, cat: v.category || '' })).sort((a, b) => a.name.localeCompare(b.name)) });
     }
     if (b.mode === 'speak') {

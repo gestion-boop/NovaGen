@@ -172,6 +172,11 @@ function bindAd() {
       const fill = vs => { sel.innerHTML = '<option value="">— choisis une voix —</option>' + vs.map(v => `<option value="${v.id}">${esc(v.name)}${v.cat === 'cloned' || v.cat === 'professional' ? ' ★' : ''}</option>`).join(''); const last = ad.voiceId || localStorage.getItem('ng_el_voice') || ''; if (last) sel.value = last; };
       try { const c = JSON.parse(localStorage.getItem('ng_el_voices') || '[]'); if (c.length) fill(c); } catch (e) { }
       const load = async () => { els('Chargement des voix…'); try { const r = await api('/api/tts', { mode: 'voices' }); localStorage.setItem('ng_el_voices', JSON.stringify(r.voices)); fill(r.voices); els(r.voices.length + ' voix'); } catch (e) { els('⚠ ' + e.message); } };
+      const kb = $('#elkb'), ki = $('#elki'); ki.value = localStorage.getItem('ng_el_key') || ''; $('#elk').textContent = localStorage.getItem('ng_el_key') ? '🔑 ✔' : '🔑';
+      $('#elk').onclick = () => { kb.style.display = kb.style.display === 'none' ? 'block' : 'none'; };
+      $('#elks').onclick = async () => { const v = ki.value.trim(); if (!v) { els('Colle ta clé.'); return; } localStorage.setItem('ng_el_key', v); $('#elk').textContent = '🔑 ✔'; await load(); if (sel.options.length > 1) kb.style.display = 'none'; };
+      $('#elkx').onclick = () => { localStorage.removeItem('ng_el_key'); ki.value = ''; $('#elk').textContent = '🔑'; els('Clé oubliée.'); };
+      if (!localStorage.getItem('ng_el_key')) api('/api/tts', { mode: 'status' }).then(r => { if (!r.configured) { kb.style.display = 'block'; els('Colle ta clé API pour activer.'); } }).catch(() => { });
       $('#elr').onclick = load; sel.onchange = () => { ad.voiceId = sel.value; localStorage.setItem('ng_el_voice', sel.value); save(); };
       $('#elg').onclick = async () => { const t = sc.value.trim(); if (!t) { els('Écris ou génère d\'abord le texte ci-dessus.'); return; } if (!sel.value) { if (sel.options.length < 2) await load(); if (!sel.value) { els('Choisis une voix.'); return; } }
         const btn = $('#elg'); btn.disabled = true; els('🎙 Génération… (' + Math.round((t.match(/\S+/g) || []).length / 2.3) + ' s de voix environ)');
