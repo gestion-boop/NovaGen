@@ -35,9 +35,9 @@ const svgI = p => `<svg class="ci" viewBox="0 0 24 24" fill="none" stroke="curre
 const stars = '<span class="stars" aria-hidden="true">★★★★★</span>';
 const mapEmbed = (f, h) => { const heb = f.type === 'hebergement' && !f.adresse, q = f.adresse || (f.ville ? f.nom + ' ' + f.ville : f.nom); return `<iframe title="map" loading="lazy" style="width:100%;height:${h};border:0;display:block" src="https://maps.google.com/maps?q=${encodeURIComponent(heb ? f.ville : q)}&z=${heb ? 12 : 16}&output=embed"></iframe>`; };
 const hoursTable = (f, t) => (f.horaires || []).some(x => x && x.trim()) ? `<table>${DAYS.fr.map((_, i) => { const v = (f.horaires[i] || '').trim(), closed = !v || /^ferm/i.test(v); return `<tr data-day="${i}"><td>${t({ fr: DAYS.fr[i], es: DAYS.es[i], de: DAYS.de[i], en: DAYS.en[i] })}</td><td>${closed ? t(T.ferme) : esc(v)}</td></tr>`; }).join('')}</table>` : '';
-const socialBtns = f => [f.facebook && `<a class="sb fb" href="${esc(f.facebook)}" target="_blank" rel="noopener">Facebook</a>`, f.instagram && `<a class="sb ig" href="${esc(f.instagram)}" target="_blank" rel="noopener">Instagram</a>`].filter(Boolean).join('');
+const socialBtns = f => socIcons(f);
 const NAV_CSS = '.navs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.nv{flex:1 1 120px;display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;text-decoration:none;font:700 13.5px Montserrat,sans-serif;padding:11px 14px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.18);transition:.15s}.nv:hover{transform:translateY(-2px);filter:brightness(1.08)}.nv span{font-size:16px}';
-const SOC_CSS = '.sb{flex:1;display:flex;align-items:center;justify-content:center;padding:12px;border-radius:30px;color:#fff;text-decoration:none;font:700 14px Montserrat,sans-serif}.sb.fb{background:#1877f2}.sb.ig{background:linear-gradient(45deg,#f9a03f,#e1306c 55%,#7b3fe4)}';
+const SOC_CSS = SOC_ICON_CSS;
 
 /* ---------- POINT INFO « Fiche » (modèle Mioza) ---------- */
 function pageInfos5(f) {

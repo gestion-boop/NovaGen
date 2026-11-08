@@ -211,6 +211,14 @@ const schOf = f => { const h = (f.horaires || []).map(parseHours); return h.some
 const fontFiles = f => ['dmserif', 'greatvibes', 'm400', 'm600', 'm700', 'm800'].map(n => ['assets/fonts/' + n + '.woff2', { url: 'fonts/' + n + '.woff2' }]);
 
 /* ---------- pages ---------- */
+/* icônes réseaux (Instagram, Facebook, site internet) : ronds, au premier plan */
+const SOC_SVG = {
+  ig: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>',
+  fb: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>',
+  wb: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><ellipse cx="12" cy="12" rx="4.2" ry="9.5"/><path d="M2.5 12h19M4 7.2h16M4 16.8h16"/></svg>'
+};
+const socIcons = f => [[f.instagram, 'ig', 'Instagram'], [f.facebook, 'fb', 'Facebook'], [f.site, 'wb', 'Site internet']].filter(x => x[0]).map(([u, k, n]) => `<a class="si ${k}" href="${esc(u)}" target="_blank" rel="noopener" aria-label="${n}" title="${n}">${SOC_SVG[k]}</a>`).join('');
+const SOC_ICON_CSS = '.row5{justify-content:center}.soc{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}.si{width:48px;height:48px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 6px 16px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.35);transition:transform .18s ease,box-shadow .18s ease}.si svg{width:24px;height:24px;fill:currentColor}.si:hover{transform:translateY(-3px) scale(1.1);box-shadow:0 10px 22px rgba(0,0,0,.35)}.si:active{transform:scale(.95)}.si.ig{background:linear-gradient(45deg,#f9a03f,#e1306c 55%,#7b3fe4)}.si.fb{background:#1877f2}.si.wb svg{fill:none;stroke:currentColor}.si.wb{background:#2a2f36;border:1.5px solid rgba(255,255,255,.55)}';
 function pageInfos(f) {
   { const st = styleOf(f); if (st === '5') return pageInfos5(f); if (st === '6') return pageInfos6(f); }
   const ctx = mk(), { t } = ctx, heb = f.type === 'hebergement', sch = heb ? schOf(f) : schOf(f);
@@ -218,7 +226,6 @@ function pageInfos(f) {
   if (f.tel) acts.push(`<a class="btn" href="${telHref(f.tel)}">📞 ${t(T.appeler)}</a>`);
   if (f.booking) acts.push(`<a class="btn" href="${esc(f.booking)}" target="_blank" rel="noopener">${t(T.reserverbk)}</a>`);
   if (!heb || f.adresse) acts.push(`<a class="btn o" href="${mapsUrl(f)}" target="_blank" rel="noopener">📍 ${t(T.itineraire)}</a>`);
-  if (f.site) acts.push(`<a class="btn o" href="${esc(f.site)}" target="_blank" rel="noopener">🌐 ${t(T.siteweb)}</a>`);
   const hr = (f.horaires || []).some(x => x && x.trim()) ? `<div class="card"><h2 class="h">${t(T.horaires)}</h2><table>${DAYS.fr.map((_, i) => {
     const v = (f.horaires[i] || '').trim(); const closed = !v || /^ferm/i.test(v);
     return `<tr data-day="${i}"><td>${t({ fr: DAYS.fr[i], es: DAYS.es[i], de: DAYS.de[i], en: DAYS.en[i] })}</td><td>${closed ? t(T.ferme) : esc(v)}</td></tr>`;
@@ -229,9 +236,9 @@ function pageInfos(f) {
   const cont = (f.tel || f.email) ? `<div class="card"><h2 class="h">${t(T.contact)}</h2><p class="mu">${f.tel ? `📞 <a href="${telHref(f.tel)}" style="color:inherit;font-weight:700">${esc(f.tel)}</a><br>` : ''}${f.email ? `✉️ <a href="mailto:${esc(f.email)}" style="color:inherit;font-weight:700">${esc(f.email)}</a>` : ''}</p></div>` : '';
   const sv = (f.services || []).length ? `<div class="card"><h2 class="h">${t(T.services)}</h2><div class="chips">${f.services.map(s => t(s)).join('')}</div></div>` : '';
   const soc = [f.facebook && ['Facebook', f.facebook], f.instagram && ['Instagram', f.instagram]].filter(Boolean);
-  const rs = soc.length ? `<div class="card"><h2 class="h">${t(T.reseaux)}</h2><div class="row">${soc.map(([n, u]) => `<a class="btn o" href="${esc(u)}" target="_blank" rel="noopener">${n}</a>`).join('')}</div></div>` : '';
+  const rs = '' && soc.length ? `<div class="card"><h2 class="h">${t(T.reseaux)}</h2><div class="row">${soc.map(([n, u]) => `<a class="btn o" href="${esc(u)}" target="_blank" rel="noopener">${n}</a>`).join('')}</div></div>` : '';
   const sub = f.slogan?.fr ? t(f.slogan, 'p', 'sl') : '';
-  const hero = `<section class="hero"><div class="hp"></div><div class="hc">${f._logo ? `<img class="hl" src="assets/img/${f._logo}" alt="">` : ''}<h1 class="h">${esc(f.nom)}</h1>${sub}${f.descCourte?.fr ? t(f.descCourte, 'p', 'sd') : ''}<div class="row" style="margin-top:18px">${acts.join('')}</div></div></section>`;
+  const hero = `<section class="hero"><div class="hp"></div><div class="hc">${f._logo ? `<img class="hl" src="assets/img/${f._logo}" alt="">` : ''}<h1 class="h">${esc(f.nom)}</h1>${sub}${f.descCourte?.fr ? t(f.descCourte, 'p', 'sd') : ''}<div class="row" style="margin-top:18px">${acts.join('')}</div>${socIcons(f) ? `<div class="soc" style="justify-content:flex-start">${socIcons(f)}</div>` : ''}</div></section>`;
   const about = f.description?.fr ? `<div class="card ab">${t(f.description, 'p', 'mu')}</div>` : '';
   const body = header(f, ctx, T.infos, !!sch) + hero + `<div class="wrap ov">${about}${hr}${adr}${cont}${sv}${rs}</div>`;
   const c1 = mix(f.c1, '#000000', .3), hl = lum(f.c2) > .4 ? f.c2 : mix(f.c2, '#ffffff', .55);
@@ -249,7 +256,7 @@ body.s2 .hero{text-align:center}body.s2 .hc{display:flex;flex-direction:column;a
 body.s3 .hero{min-height:clamp(280px,44vh,420px);background:linear-gradient(115deg,${c1} 0%,${mix(c1, f.c2, .4)} 100%)}body.s3 .hero::before{background:${motif(f, '#ffffff', .09)}}
 body.s3 .hp{display:block;position:absolute;top:0;right:0;bottom:0;width:48%;background:${f._fond ? 'url(assets/img/fond.jpg) center/cover' : mix(f.c2, c1, .3)};-webkit-mask-image:linear-gradient(90deg,transparent,#000 42%);mask-image:linear-gradient(90deg,transparent,#000 42%)}body.s3 .hc{position:relative;z-index:1}body.s3 .hero .sd{max-width:46%}body.s3 .hl{display:block;width:84px;height:84px}
 body.s4 .hero{min-height:clamp(340px,62vh,560px);background:${f._fond ? `linear-gradient(180deg,${c1}22 0%,${c1}22 40%,${c1}e0 100%),url(assets/img/fond.jpg) center/cover` : `linear-gradient(135deg,${c1},${mix(c1, f.c2, .55)})`}}body.s4 .hero h1{font-size:clamp(46px,12vw,112px);line-height:.92;letter-spacing:-.01em}body.s4 .hc{padding-bottom:42px}body.s4 .hl{display:block;position:absolute;top:26px;left:22px;width:70px;height:70px;margin:0}body.s4 .ab{border-top:0;border-left:5px solid var(--c2);border-radius:4px 18px 18px 4px}
-@media(max-width:760px){.hc{padding:52px 18px 56px}body.s3 .hp{width:100%;opacity:.35}body.s3 .hero .sd{max-width:none}}`;
+${SOC_ICON_CSS}body.s2 .hero .soc{justify-content:center!important}@media(max-width:760px){.hc{padding:52px 18px 56px}body.s3 .hp{width:100%;opacity:.35}body.s3 .hero .sd{max-width:none}}`;
   return { 'index.html': shell(f, ctx, { title: f.nom + ' — Infos', css, body, sch }) };
 }
 
