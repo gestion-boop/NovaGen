@@ -238,7 +238,7 @@ ${plats.length ? '\n### Plats et prix\n' + plats.join('\n') : ''}
   const typ = f.type === 'hebergement' ? 'hébergement' : f.type === 'commerce' ? 'commerce' : 'restaurant / bar';
   const SHOTS = { 'restaurant / bar': ['plat signature en gros plan (vapeur, texture, sauce qui coule)', 'terrasse ou façade (donne l\'ambiance et le lieu)', 'salle intérieure / comptoir / cuisine en action', 'boisson ou dessert', 'équipe ou patron souriant (humain)'], 'hébergement': ['façade ou vue d\'ensemble (on comprend tout de suite : gîte, camping, hôtel)', 'chambre / lit', 'salle de bain ou cuisine', 'piscine / terrasse / extérieur / vue', 'petit détail déco ou petit-déjeuner'], 'commerce': ['devanture', 'produit phare en gros plan', 'intérieur / rayons', 'artisan ou vendeur en action', 'détail produit'] }[typ];
   const pm = `# PROMPT — Vidéo publicitaire « ${f.nom} »
-> À lire en entier avant de commencer. Dossier joint : photos/, logo.png, musique/, voix/ (si fournie), reference/ (vidéo modèle + storyboard), fiche.json, beats.json, LIRE-MOI_brief.md (données et textes).
+> À lire en entier avant de commencer. Dossier joint : photos/, logo.png, musique/, voix/ (si fournie), reference/ (vidéo modèle, storyboard, logo NovaVisio), fiche.json, beats.json, LIRE-MOI_brief.md (données et textes).
 
 ## 0. Ta mission
 Tu es **monteur motion designer de haut niveau** (niveau grandes chaînes YouTube / Reels / TikTok qui font des millions de vues). Réalise une publicité **${dur} s maximum**, **${fmt} (${W}×${H})**, **MP4 H.264 + AAC, 30 i/s**, pour **${f.nom}** (${typ}${f.ville ? ', ' + f.ville : ''}). Ce n'est pas un diaporama : c'est un **montage nerveux, très calé sur la musique, avec des animations de texte, des transitions « clic » et du sound design**.
@@ -305,6 +305,9 @@ Les textes sont des **suggestions de contenu** : tu peux les raccourcir et les r
 ## 7. Fin (dernières ${Math.round(Math.min(9, Math.max(4, dur * .2)))} s)
 Image forte + « Venez nous voir » + **${f.nom}** + adresse (${adr || '—'}) + bouton animé **« Réservez · ${f.tel || '—'} »**${ig ? ' + @' + ig : ''}. Reste lisible **3 secondes minimum**. Dernier temps fort = impact sonore + logo.
 
+## 7 bis. SIGNATURE OBLIGATOIRE — « Publicité créée par NovaVisio »
+En **tout bas de l'écran de fin** (zone 1 780–1 840 px en 9:16, sous le bouton et l'adresse), ajoute la ligne **« Publicité créée par » + le logo rond NovaVisio (reference/logo_novavisio.png, ≈ 55 px) + « NovaVisio »**, discrète mais lisible (texte crème, « NovaVisio » en blanc gras), qui apparaît en fondu 1,5 s avant la fin et reste jusqu'au dernier plan. Ne la mets ni au début ni au milieu de la vidéo.
+
 ## 8. Qualité
 - Texte **lisible sur mobile** (≥ 5 % de la hauteur), contraste suffisant (voile ou ombre), zone de sécurité de 8 % en haut et en bas (interfaces Reels / TikTok).
 - Couleurs de la charte : ${f.c1 || ''} / ${f.c2 || ''} / ${f.c3 || ''}. Police : ${ad.style == 2 ? 'Playfair Display' : 'Montserrat (gras)'}.
@@ -316,7 +319,7 @@ ${ad.note ? '## 8 bis. Consignes spécifiques du client\n' + ad.note + '\n\n' : 
 3. Puis génère le MP4 final et **envoie-le comme fichier**, avec la liste des photos écartées ou à refaire.
 `;
   if (ad.script && ad.script.trim()) zip.file('voix/texte_voix_off.txt', ad.script.trim());
-  zip.file('PROMPT_VIDEO.md', pm); try { for (const n of ['reference_pub.mp4', 'storyboard.jpg']) { const r = await fetch('ref/' + n); if (r.ok) zip.file('reference/' + n, await r.blob()); } } catch (e) { } if (bts.length) zip.file('beats.json', JSON.stringify({ duree_musique_s: +mdur.toFixed(1), decalage_s: +ad.offset || 0, temps_forts_s: bts }, null, 1));
+  zip.file('PROMPT_VIDEO.md', pm); try { for (const n of ['reference_pub.mp4', 'storyboard.jpg', 'logo_novavisio.png']) { const r = await fetch('ref/' + n); if (r.ok) zip.file('reference/' + n, await r.blob()); } } catch (e) { } if (bts.length) zip.file('beats.json', JSON.stringify({ duree_musique_s: +mdur.toFixed(1), decalage_s: +ad.offset || 0, temps_forts_s: bts }, null, 1));
   zip.file('LIRE-MOI_brief.md', md); zip.file('fiche.json', JSON.stringify(Object.assign({}, f, { _logo: undefined, _fond: undefined }), null, 1));
   return { blob: await zip.generateAsync({ type: 'blob' }), prompt: `Voici le dossier de ${f.nom}. Lis d'abord PROMPT_VIDEO.md en entier et regarde reference/storyboard.jpg (vidéo modèle à égaler) (puis LIRE-MOI_brief.md pour les données) et réalise la vidéo publicitaire demandée (${dur} s max, ${fmt}) : montage motion design nerveux, hook fort, transitions et bruitages calés sur les temps forts de beats.json, photos choisies en cohérence avec chaque texte. Utilise les photos, le logo et la musique du dossier.` };
 }
