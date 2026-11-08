@@ -14,7 +14,7 @@ function adTexts(f) {
   if (f.type === 'pro') { (f.services || []).map(adTxt).filter(Boolean).slice(0, 5).forEach(s => o.push({ big: s, tag: 'Nos prestations' })); return o; }
   const items = parseCarte(f.carteTxt).flatMap(c => c.items).filter(i => i.nom && i.prix), pick = [], step = Math.max(1, Math.floor(items.length / 4));
   for (let i = 0; i < items.length && pick.length < 4; i += step) pick.push(items[i]);
-  pick.forEach(i => o.push({ big: i.nom, small: i.prix, tag: 'À la carte' }));
+  pick.forEach(i => o.push({ big: i.nom, tag: 'À la carte' }));
   const sv = (f.services || []).map(adTxt).filter(Boolean).slice(0, 3); if (sv.length) o.push({ big: sv.join(' · ') });
   return o;
 }
@@ -30,7 +30,7 @@ function adScript(f, dur) {
   if (typ === 'pro') { const sv = (f.services || []).map(adTxt).filter(Boolean).slice(0, 5).map(adSpeak), adr = adAdr(f), tel = String(f.tel || '').replace(/^\+33\s*/, '0').replace(/\s+/g, ' ').trim(), P2 = [`Vous cherchez un professionnel de confiance${ville ? ' à ' + ville : ''} ?`, L(nom + (sl ? ', ' + sl.charAt(0).toLowerCase() + sl.slice(1) : '')), d && L(d), sv.length && L('Nos prestations : ' + sv.join(', ')), tel && L('Contactez-nous au ' + tel), adr && L('Nous sommes à ' + adr.replace(/,?\s*\d{5}\s*/, ', ')), L(nom + (ville ? ', ' + ville : ''))].filter(Boolean); return P2.join('\n\n'); }
   const items = parseCarte(f.carteTxt).flatMap(c => c.items).filter(i => i.nom && i.prix), pick = [], step = Math.max(1, Math.floor(items.length / 3));
   for (let i = 0; i < items.length && pick.length < 3; i += step) pick.push(items[i]);
-  if (pick.length) P.push(L('Au menu : ' + pick.map(i => adSpeak(i.nom) + ', à ' + adSpeak(i.prix)).join(' ... ')));
+  if (pick.length) P.push(L('Au menu : ' + pick.map(i => adSpeak(i.nom)).join(', ')));
   const sv = (f.services || []).map(adTxt).filter(Boolean).slice(0, 3); if (sv.length) P.push(L(sv.map(adSpeak).join(', ')));
   const adr = adAdr(f), tel = String(f.tel || '').replace(/^\+33\s*/, '0').replace(/\s+/g, ' ').trim();
   P.push(L(`Venez nous voir${adr ? ' : ' + adr.replace(/,?\s*\d{5}\s*/, ', ') : ''}`));
@@ -201,7 +201,7 @@ async function adKit(p) {
   let bts = [], mdur = 0; if (p.adMusic && p.adMusic.blob) { try { const ac = new (window.AudioContext || window.webkitAudioContext)(), mu = await ac.decodeAudioData(await p.adMusic.blob.arrayBuffer()); ac.close(); mdur = mu.duration; const off0 = Math.max(0, +ad.offset || 0), sr = mu.sampleRate; bts = adBeats({ getChannelData: () => mu.getChannelData(0).subarray(Math.floor(off0 * sr)), sampleRate: sr }, dur + 1).map(x => +x.toFixed(2)); } catch (e) { } }
   let vdur = 0; if (p.adVoice && p.adVoice.blob) { zip.file('voix/' + p.adVoice.name.replace(/[^\w.-]+/g, '_'), p.adVoice.blob); try { const ac = new (window.AudioContext || window.webkitAudioContext)(); vdur = (await ac.decodeAudioData(await p.adVoice.blob.arrayBuffer())).duration; ac.close(); } catch (e) { } }
   const adr = adAdr(f), ig = (String(f.instagram || '').match(/instagram\.com\/([^/?#]+)/i) || [])[1];
-  const plats = cats.flatMap(c => c.items.filter(i => i.prix).map(i => `- ${i.nom} — ${i.prix}`)).slice(0, 12);
+  const plats = cats.flatMap(c => c.items.filter(i => i.prix).map(i => `- ${i.nom}`)).slice(0, 12);
   const md = `# Brief vidéo publicitaire — ${f.nom}
 
 ## Ce que je te demande
@@ -229,7 +229,7 @@ ${tx.map((t, i) => `   - Scène ${i + 1} : ${t.tag ? t.tag + ' — ' : ''}${t.bi
 - Téléphone : ${f.tel || '—'}
 - Site : ${f.site || '—'} · Instagram : ${f.instagram || '—'} · Facebook : ${f.facebook || '—'}
 - Description : ${adTxt(f.descCourte) || adTxt(f.description) || '—'}
-${plats.length ? '\n### Plats et prix\n' + plats.join('\n') : ''}
+${plats.length ? '\n### Plats (sans les prix)\n' + plats.join('\n') : ''}
 
 ## Livraison
 1. Montre-moi d'abord une image d'aperçu de 3 moments de la vidéo (intro, scène, fin).
@@ -316,7 +316,7 @@ Image forte + « ${isPro ? 'Contactez-nous' : 'Venez nous voir'} » + **${f.nom}
 ## 7 bis. SIGNATURE OBLIGATOIRE — « Publicité créée par NovaVisio »
 En **tout bas de l'écran de fin** (zone 1 780–1 840 px en 9:16, sous le bouton et l'adresse), ajoute la ligne **« Publicité créée par » + le logo rond NovaVisio (reference/logo_novavisio.png, ≈ 55 px) + « NovaVisio »**, discrète mais lisible (texte crème, « NovaVisio » en blanc gras), qui apparaît en fondu 1,5 s avant la fin et reste jusqu'au dernier plan. Ne la mets ni au début ni au milieu de la vidéo.
 
-## 8. Qualité
+## 7 ter. PAS DE PRIX\nN'affiche et ne prononce **aucun prix** dans la vidéo (ni étiquette, ni badge, ni « à 9,90 € »). Cite les plats par leur nom seulement.\n\n## 8. Qualité
 - Texte **lisible sur mobile** (≥ 5 % de la hauteur), contraste suffisant (voile ou ombre), zone de sécurité de 8 % en haut et en bas (interfaces Reels / TikTok).
 - Couleurs de la charte : ${f.c1 || ''} / ${f.c2 || ''} / ${f.c3 || ''}. Police : ${ad.style == 2 ? 'Playfair Display' : 'Montserrat (gras)'}.
 - Aucune faute d'orthographe, accents corrects.
