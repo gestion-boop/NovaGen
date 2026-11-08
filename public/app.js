@@ -305,7 +305,7 @@ function renderBar() {
   <div class="row" style="margin-top:12px"><button class="b o s" id="bcp">📋 Copier la liste des liens</button></div>`;
   const save2 = (re = true) => { save(); if (re) renderBar(); }, at = v => { const [pg, i] = v.split(':').map(Number); return [pages[pg], i]; };
   const msg = t => { const m = $('#bsm'); m.textContent = t; m.classList.add('on'); clearTimeout(msg.t); msg.t = setTimeout(() => m.classList.remove('on'), 2600); };
-  const full = on => { const bs = $('#bs'); bs.classList.toggle('full', on); document.body.style.overflow = on ? 'hidden' : ''; if (on) { bs.requestFullscreen && bs.requestFullscreen().catch(() => {}); } else if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); if (!on) { $('#bso').classList.remove('on'); $('#bsf').srcdoc = ''; } };
+  const full = on => { const bs = $('#bs'); bs.classList.toggle('full', on); document.body.style.overflow = on ? 'hidden' : ''; if (on) { bs.requestFullscreen && bs.requestFullscreen().catch(() => {}); } else if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); if (!on) { $('#bso').classList.remove('on'); $('#bsf').srcdoc = ''; $('#bsf').removeAttribute('src'); } };
   el.querySelectorAll('[data-bi]').forEach(bt => bt.onclick = async () => {
     const b = pages[barView][+bt.dataset.bi], l = barLink(b);
     if (b.t === 'none') { msg('Panorama : vue des différentes images, aucun lien.'); return; }
@@ -315,13 +315,14 @@ function renderBar() {
       const k = b.t.slice(5); bt.disabled = true;
       try {
         const pub = cur.pub && cur.pub[k] && cur.pub[k].url && cur.pub[k].project === projOf(k) ? cur.pub[k].url : '';
+        if (pub) { $('#bsf').removeAttribute('srcdoc'); $('#bsf').src = pub; $('#bst').innerHTML = esc(BAR_LAB[b.k] || '') + ' · page en ligne · <a href="' + esc(pub) + '" target="_blank" style="color:inherit">' + esc(pub.replace('https://', '')) + ' ↗</a>'; $('#bso').classList.add('on'); return; }
         const files = await make(k); if (!files) { msg('Cette page n\'est pas disponible pour cette fiche.'); return; }
         let html = files['index.html']; for (const [pp, v] of Object.entries(files)) if (pp !== 'index.html') html = html.split(pp).join(URL.createObjectURL(v));
-        $('#bsf').removeAttribute('src'); $('#bsf').srcdoc = html; $('#bst').textContent = (BAR_LAB[b.k] || '') + (pub ? ' · version locale (à jour)' : ' · aperçu local, pas encore déployé'); $('#bso').classList.add('on');
+        $('#bsf').removeAttribute('src'); $('#bsf').srcdoc = html; $('#bst').textContent = (BAR_LAB[b.k] || '') + ' · aperçu local, pas encore déployé'; $('#bso').classList.add('on');
       } catch (e) { msg('Erreur : ' + e.message); } finally { bt.disabled = false; }
     } else if (!l) msg('Pas de lien renseigné pour ce bouton.'); else if (b.t === 'tel') msg('📞 Ouvre l\'appel : ' + l.slice(4)); else if (b.t === 'mail') msg('✉ Ouvre un e-mail : ' + l.slice(7)); else window.open(l, '_blank');
   });
-  $('#bsx').onclick = () => { $('#bso').classList.remove('on'); $('#bsf').srcdoc = ''; };
+  $('#bsx').onclick = () => { $('#bso').classList.remove('on'); $('#bsf').srcdoc = ''; $('#bsf').removeAttribute('src'); };
   el.querySelectorAll('[data-bgp]').forEach(i => i.onclick = () => { cur.barBg = +i.dataset.bgp; cur.barBgFile = null; save2(); });
   $('#bgu').onclick = () => $('#bgf').click(); $('#bgf').onchange = () => { const x = $('#bgf').files[0]; if (x) { cur.barBgFile = x; save2(); } };
   if ($('#bga')) $('#bga').onclick = () => { cur.barBg = null; cur.barBgFile = null; save2(); };
