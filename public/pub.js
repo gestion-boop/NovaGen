@@ -43,6 +43,7 @@ function adPlan(f, A, D, beats, style) {
 }
 
 function adWrap(c, text, maxW) { const w = String(text).split(/\s+/), L = []; let l = ''; for (const x of w) { const t = l ? l + ' ' + x : x; if (c.measureText(t).width > maxW && l) { L.push(l); l = x; } else l = t; } if (l) L.push(l); return L; }
+function adAdr(f) { const a = String(f.adresse || '').trim(), v = String(f.ville || '').trim(); return a && v && a.toLowerCase().includes(v.toLowerCase()) ? a : [a, v].filter(Boolean).join(', '); }
 function adCover(c, img, x, y, W, H, z, px, py) { const r = Math.max(W / img.width, H / img.height) * z, w = img.width * r, h = img.height * r; c.save(); c.beginPath(); c.rect(x, y, W, H); c.clip(); c.drawImage(img, x + (W - w) * px, y + (H - h) * py, w, h); c.restore(); }
 function adRR(c, x, y, w, h, r) { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); }
 
@@ -55,7 +56,7 @@ function adFrame(c, W, H, t, P) {
   if (t < plan.intro) {
     const k = t / plan.intro; bgPhoto(A.photos[0], k, st === 3 ? '246,243,238,.0' : '10,10,14,.62'); if (st === 3) { c.fillStyle = '#f6f3ee'; c.fillRect(0, 0, W, H); }
     const ink = st === 3 ? c1 : '#fff', cx = W / 2, cy = H * (portrait ? .42 : .4), R = 150 * u * adBack((t - .2) / .7);
-    if (A.logo && R > 1) { c.save(); c.shadowColor = 'rgba(0,0,0,.4)'; c.shadowBlur = 40 * u; c.fillStyle = f.logoLight ? c1 : '#fff'; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.fill(); c.restore(); c.save(); c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip(); const s = Math.min(R * 1.5 / A.logo.width, R * 1.5 / A.logo.height); c.drawImage(A.logo, cx - A.logo.width * s / 2, cy - A.logo.height * s / 2, A.logo.width * s, A.logo.height * s); c.restore(); }
+    if (A.logo && R > 1) { c.save(); c.shadowColor = 'rgba(0,0,0,.4)'; c.shadowBlur = 40 * u; c.fillStyle = f.logoLight ? c1 : '#fff'; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.fill(); c.restore(); c.save(); c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip(); const s = Math.min(R * 1.5 / A.logo.width, R * 1.5 / A.logo.height); { const L = A.logo, m = .035, sx = L.width * m, sy = L.height * m, sw = L.width - 2 * sx, sh = L.height - 2 * sy; c.drawImage(L, sx, sy, sw, sh, cx - sw * s / 2, cy - sh * s / 2, sw * s, sh * s); } c.restore(); }
     const ny = cy + (A.logo ? 150 * u + 120 * u : 0), a1 = adOut((t - .9) / .6); text(f.nom || '', cx, ny + (1 - a1) * 40 * u, (portrait ? 96 : 88) * u, ink, 'center', a1);
     c.save(); c.globalAlpha = adOut((t - 1.3) / .6); c.fillStyle = c3; c.fillRect(cx - 90 * u * adOut((t - 1.3) / .6), ny + 36 * u, 180 * u * adOut((t - 1.3) / .6), 5 * u); c.restore();
     const sl = adTxt(f.slogan); if (sl) text(sl, cx, ny + 100 * u, 42 * u, st === 3 ? c2 : c3, 'center', adOut((t - 1.6) / .6), W * .8);
@@ -64,7 +65,7 @@ function adFrame(c, W, H, t, P) {
     bgPhoto(last, k, st === 3 ? '246,243,238,.84' : '10,10,14,.66'); const ink = st === 3 ? c1 : '#fff', cx = W / 2, s0 = plan.D - plan.outro, y0 = H * (portrait ? .32 : .28);
     const A1 = adOut((t - s0 - .2) / .5); text(st === 2 ? 'À très bientôt' : 'Venez nous voir', cx, y0 + (1 - A1) * 30 * u, 44 * u, st === 3 ? c2 : c3, 'center', A1);
     const A2 = adOut((t - s0 - .6) / .6); const hh = text(f.nom || '', cx, y0 + 110 * u + (1 - A2) * 40 * u, (portrait ? 98 : 88) * u, ink, 'center', A2);
-    const adr = [f.adresse, f.ville].filter(Boolean).join(', '), A3 = adOut((t - s0 - 1.1) / .6); if (adr) text(adr, cx, y0 + 110 * u + hh + 30 * u, 44 * u, ink, 'center', A3 * .92, W * .84);
+    const adr = adAdr(f), A3 = adOut((t - s0 - 1.1) / .6); if (adr) text(adr, cx, y0 + 110 * u + hh + 30 * u, 44 * u, ink, 'center', A3 * .92, W * .84);
     if (f.tel) { const A4 = adOut((t - s0 - 1.6) / .5), pulse = 1 + .03 * Math.sin(t * 6), bw = Math.min(W * .78, 760 * u), bh = 120 * u, by = H * (portrait ? .66 : .72); c.save(); c.globalAlpha = A4; c.translate(cx, by + bh / 2); c.scale(pulse, pulse); c.fillStyle = c2; c.shadowColor = 'rgba(0,0,0,.4)'; c.shadowBlur = 30 * u; adRR(c, -bw / 2, -bh / 2, bw, bh, bh / 2); c.fill(); c.shadowBlur = 0; c.fillStyle = '#fff'; c.textAlign = 'center'; c.font = `${wt} ${46 * u}px ${FT}`; c.fillText((f.type === 'hebergement' ? 'Réservez · ' : 'Réservez · ') + f.tel, 0, 16 * u); c.restore(); }
     const h = (String(f.instagram || '').match(/instagram\.com\/([^/?#]+)/i) || [])[1]; if (h) text('@' + h, cx, H * (portrait ? .66 : .72) + 220 * u, 40 * u, ink, 'center', adOut((t - s0 - 2) / .5) * .85);
   } else {
@@ -162,7 +163,8 @@ async function adKit(p) {
   if (p.logo) zip.file('logo.png', p.logo);
   if (p.adMusic && p.adMusic.blob) zip.file('musique/' + p.adMusic.name.replace(/[^\w.-]+/g, '_'), p.adMusic.blob);
   const styD = { 1: 'Dynamique : coupes rythmées sur les temps forts, zooms rapides, flash blanc à chaque changement, titres en capitales grasses avec une barre de couleur, barre de progression.', 2: 'Élégant : fondus enchaînés lents, Ken Burns doux, titres en serif avec un filet doré, ambiance haut de gamme.', 3: 'Minimal : fond clair, photos encadrées aux coins arrondis qui glissent, légendes sobres en dessous, beaucoup d\'air.' }[ad.style || 1];
-  const adr = [f.adresse, f.ville].filter(Boolean).join(', '), ig = (String(f.instagram || '').match(/instagram\.com\/([^/?#]+)/i) || [])[1];
+  let bts = [], mdur = 0; if (p.adMusic && p.adMusic.blob) { try { const ac = new (window.AudioContext || window.webkitAudioContext)(), mu = await ac.decodeAudioData(await p.adMusic.blob.arrayBuffer()); ac.close(); mdur = mu.duration; const off0 = Math.max(0, +ad.offset || 0), sr = mu.sampleRate; bts = adBeats({ getChannelData: () => mu.getChannelData(0).subarray(Math.floor(off0 * sr)), sampleRate: sr }, dur + 1).map(x => +x.toFixed(2)); } catch (e) { } }
+  const adr = adAdr(f), ig = (String(f.instagram || '').match(/instagram\.com\/([^/?#]+)/i) || [])[1];
   const plats = cats.flatMap(c => c.items.filter(i => i.prix).map(i => `- ${i.nom} — ${i.prix}`)).slice(0, 12);
   const md = `# Brief vidéo publicitaire — ${f.nom}
 
@@ -198,6 +200,67 @@ ${plats.length ? '\n### Plats et prix\n' + plats.join('\n') : ''}
 2. Après mon accord, génère le MP4 et envoie-le-moi comme fichier.
 3. Si une photo est floue, trop sombre ou coupée, dis-le-moi au lieu de l'utiliser telle quelle.
 `;
+
+  const typ = f.type === 'hebergement' ? 'hébergement' : f.type === 'commerce' ? 'commerce' : 'restaurant / bar';
+  const SHOTS = { 'restaurant / bar': ['plat signature en gros plan (vapeur, texture, sauce qui coule)', 'terrasse ou façade (donne l\'ambiance et le lieu)', 'salle intérieure / comptoir / cuisine en action', 'boisson ou dessert', 'équipe ou patron souriant (humain)'], 'hébergement': ['façade ou vue d\'ensemble (on comprend tout de suite : gîte, camping, hôtel)', 'chambre / lit', 'salle de bain ou cuisine', 'piscine / terrasse / extérieur / vue', 'petit détail déco ou petit-déjeuner'], 'commerce': ['devanture', 'produit phare en gros plan', 'intérieur / rayons', 'artisan ou vendeur en action', 'détail produit'] }[typ];
+  const pm = `# PROMPT — Vidéo publicitaire « ${f.nom} »
+> À lire en entier avant de commencer. Dossier joint : photos/, logo.png, musique/, fiche.json, beats.json, LIRE-MOI_brief.md (données et textes).
+
+## 0. Ta mission
+Tu es **monteur motion designer de haut niveau** (niveau grandes chaînes YouTube / Reels / TikTok qui font des millions de vues). Réalise une publicité **${dur} s maximum**, **${fmt} (${W}×${H})**, **MP4 H.264 + AAC, 30 i/s**, pour **${f.nom}** (${typ}${f.ville ? ', ' + f.ville : ''}). Ce n'est pas un diaporama : c'est un **montage nerveux, très calé sur la musique, avec des animations de texte, des transitions « clic » et du sound design**.
+
+## 1. Le hook (0 → 2,5 s) — c'est 80 % du résultat
+- Ouvre **directement sur la meilleure image** (la plus appétissante / la plus spectaculaire), en gros plan, **sans logo, sans fondu**.
+- Un **mot-choc ou une question** en gros (≤ 4 mots) qui dit le genre d'établissement ET donne envie. Ex. : ${typ === 'restaurant / bar' ? '« ON A TROUVÉ LA PÉPITE DE ' + (f.ville || 'LA VILLE').toUpperCase() + ' »' : typ === 'hébergement' ? '« VOTRE ÉVASION COMMENCE ICI »' : '« À DÉCOUVRIR ABSOLUMENT »'} (adapte-le aux données réelles, n'invente rien).
+- Premier mouvement dès la **première image** (zoom punch-in rapide, shake léger), **impact sonore** (whoosh + hit) calé sur le premier temps fort.
+- Le spectateur doit comprendre en **moins de 2 secondes** à quel type de lieu il a affaire.
+
+## 2. Choix des photos — sois précis et cohérent
+1. **Regarde chaque photo** du dossier et classe-la (plat, boisson, terrasse, façade, intérieur, équipe, détail, vue…).
+2. **Le texte et le type de photo doivent correspondre** : une scène « Terrasse » = une photo de terrasse ; « Notre plat » = une photo de ce plat ; jamais une photo au hasard. Si le nom d'un plat est cité, utilise la photo de ce plat si tu peux l'identifier, sinon un titre générique (« Fait maison »).
+3. Ordre conseillé pour ce genre d'établissement (${typ}) : ${SHOTS.map((x, i) => (i + 1) + '. ' + x).join(' ; ')}.
+4. **Cadre pour mobile (9:16)** : recadre sur le sujet (pas sur le vide), garde le texte hors du sujet. Jamais d'étirement.
+5. **Signale-moi** toute photo floue, sombre, mal cadrée ou hors sujet, et indique ce qui manque (ex. « pas de photo de terrasse »). Ne l'utilise pas telle quelle.
+
+## 3. Rythme et synchro musique
+- Utilise **musique/** : coupe à ${dur} s max, fondu d'entrée 0,6 s, fondu de sortie 1,6 s.
+- **beats.json** donne les temps forts (en secondes, depuis le début de la vidéo). **Chaque changement de plan tombe sur un temps fort.** Plans courts au début (1 à 1,5 s), un peu plus longs au milieu (2 à 3 s), accélération avant la fin.
+${bts.length ? '- Temps forts détectés (s) : ' + bts.slice(0, 40).join(', ') + (bts.length > 40 ? '…' : '') : '- (Pas de musique jointe : cale-toi sur ton propre tempo, ~120 BPM.)'}
+- Une **accroche visuelle sur chaque temps fort important** (flash, zoom, tremblement, mot qui claque).
+
+## 4. Animations attendues (style ${sty})
+${styD}
+Dans tous les cas :
+- **Texte cinétique** : mots qui entrent un par un (masque, glissé, « pop » avec léger rebond), jamais un bloc qui apparaît d'un coup. Mot clé en couleur d'accent.
+- **Mouvements de caméra** sur chaque photo : punch-in, push lent, léger pan ; alterne les directions. Pas de plan statique.
+- **Transitions « clic »** : whip-pan avec flou de mouvement, flash blanc, glitch court, wipe en forme de logo ou de forme géométrique, zoom-through. 2 à 3 types seulement, utilisés avec constance.
+- **Éléments graphiques** : barres, soulignements qui se dessinent, étiquettes de prix qui « claquent », sticker « fait maison / nouveau » si les données le disent, barre de progression fine.
+- **Logo** : apparition animée (scale + léger rebond) au début ou à la fin, pas les deux en gros.
+
+## 5. Sound design (très important)
+Ajoute par-dessus la musique, **discret mais présent** (−12 à −18 dB sous la musique) :
+- **whoosh** sur chaque transition, **hit / impact** sur le hook et sur le titre final,
+- **pop / clic** sur les mots et prix qui apparaissent, **riser** de 1 s avant le mot de fin,
+- Si tu n'as pas de banque sonore, **synthétise-les** (bruit filtré + enveloppe pour les whoosh, sinus court pour les clics) avec ffmpeg ou Python. La musique reste dominante ; baisse-la de 3 dB pendant l'impact final.
+
+## 6. Textes de la vidéo (à utiliser tels quels, rien d'inventé)
+${tx.map((t, i) => `- Scène ${i + 1} : ${t.tag ? t.tag + ' — ' : ''}${t.big}${t.small ? ' — ' + t.small : ''}`).join('\n') || '- (aucun)'}
+Les textes sont des **suggestions de contenu** : tu peux les raccourcir et les rythmer (max 6 mots par écran), mais ne change pas les prix, noms et coordonnées.
+
+## 7. Fin (dernières ${Math.round(Math.min(9, Math.max(4, dur * .2)))} s)
+Image forte + « Venez nous voir » + **${f.nom}** + adresse (${adr || '—'}) + bouton animé **« Réservez · ${f.tel || '—'} »**${ig ? ' + @' + ig : ''}. Reste lisible **3 secondes minimum**. Dernier temps fort = impact sonore + logo.
+
+## 8. Qualité
+- Texte **lisible sur mobile** (≥ 5 % de la hauteur), contraste suffisant (voile ou ombre), zone de sécurité de 8 % en haut et en bas (interfaces Reels / TikTok).
+- Couleurs de la charte : ${f.c1 || ''} / ${f.c2 || ''} / ${f.c3 || ''}. Police : ${ad.style == 2 ? 'Playfair Display' : 'Montserrat (gras)'}.
+- Aucune faute d'orthographe, accents corrects.
+
+## 9. Méthode de livraison
+1. **D'abord** : liste-moi en 5 lignes ta classification des photos et le plan (hook, ordre des scènes, transitions choisies).
+2. Montre-moi **3 images d'aperçu** (hook, scène, fin). J'attends mon accord.
+3. Puis génère le MP4 final et **envoie-le comme fichier**, avec la liste des photos écartées ou à refaire.
+`;
+  zip.file('PROMPT_VIDEO.md', pm); if (bts.length) zip.file('beats.json', JSON.stringify({ duree_musique_s: +mdur.toFixed(1), decalage_s: +ad.offset || 0, temps_forts_s: bts }, null, 1));
   zip.file('LIRE-MOI_brief.md', md); zip.file('fiche.json', JSON.stringify(Object.assign({}, f, { _logo: undefined, _fond: undefined }), null, 1));
-  return { blob: await zip.generateAsync({ type: 'blob' }), prompt: `Voici le dossier de ${f.nom}. Lis LIRE-MOI_brief.md et réalise la vidéo publicitaire demandée (${dur} s max, ${fmt}), en utilisant les photos, le logo et la musique du dossier.` };
+  return { blob: await zip.generateAsync({ type: 'blob' }), prompt: `Voici le dossier de ${f.nom}. Lis d'abord PROMPT_VIDEO.md en entier (puis LIRE-MOI_brief.md pour les données) et réalise la vidéo publicitaire demandée (${dur} s max, ${fmt}) : montage motion design nerveux, hook fort, transitions et bruitages calés sur les temps forts de beats.json, photos choisies en cohérence avec chaque texte. Utilise les photos, le logo et la musique du dossier.` };
 }
