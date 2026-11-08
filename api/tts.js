@@ -10,7 +10,7 @@ module.exports = async (req, res) => {
     if (b.mode === 'voices') {
       const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: H }), j = await r.json().catch(() => ({}));
       if (!r.ok) { const d = j.detail || {}, st = d.status || '', msg = d.message || (typeof d === 'string' ? d : ''); return res.status(r.status === 401 ? 400 : r.status).json({ error: /permission/i.test(st + msg) ? 'Ta clé n\'a pas le droit de lire les voix (« Voices : Read »). Coche-le dans ElevenLabs → API Keys → ta clé, ou colle directement l\'ID de la voix ci-dessous.' : /invalid/i.test(st + msg) ? 'Clé ElevenLabs invalide : recopie-la en entier (elle commence par sk_).' : 'ElevenLabs ' + r.status + (st ? ' (' + st + ')' : '') + (msg ? ' : ' + msg : ''), code: st }); }
-      return res.json({ voices: (j.voices || []).map(v => ({ id: v.voice_id, name: v.name, cat: v.category || '' })).sort((a, b) => a.name.localeCompare(b.name)) });
+      return res.json({ voices: (j.voices || []).map(v => ({ id: v.voice_id, name: v.name, cat: v.category || '', prev: v.preview_url || '', lang: (v.labels && (v.labels.accent || v.labels.language)) || '', gender: (v.labels && v.labels.gender) || '' })).sort((a, b) => a.name.localeCompare(b.name)) });
     }
     if (b.mode === 'speak') {
       const text = String(b.text || '').trim(), vid = String(b.voice || '');
