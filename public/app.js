@@ -20,7 +20,7 @@ async function api(path, body, isBlob) {
   for (let i = 0; i < 2; i++) {
     const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-pass': localStorage.getItem('ng_pass') || '' }, body: body ? JSON.stringify(body) : undefined });
     if (r.status === 401) { const p = await askPass(); if (p === null) throw new Error('Mot de passe requis'); localStorage.setItem('ng_pass', p); continue; }
-    if (isBlob) { if (!r.ok) throw new Error('image'); return r.blob(); }
+    if (isBlob) { if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'image'); } return r.blob(); }
     const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status); return j;
   }
   throw new Error('Mot de passe incorrect');
@@ -225,6 +225,7 @@ function ficheHtml(f) {
   <div style="margin-top:12px;padding-top:10px;border-top:1px dashed #cfdde3"><b style="font-size:13.5px">🎙 Voix off (facultatif)</b><p class="hint" style="margin:4px 0 8px">1) Je génère le texte à partir de la fiche · 2) tu le colles dans ElevenLabs · 3) tu importes ici le MP3. Il est ajouté au ZIP et Claude cale le montage dessus.</p>
   <textarea id="adscript" rows="7" placeholder="Clique sur « Générer le texte » : tu pourras le modifier avant de le copier."></textarea>
   <div class="row" style="margin:8px 0"><button class="b o s" id="adgen">✍️ Générer le texte de la voix</button><button class="b o s" id="adcp">📋 Copier</button><span class="hint" id="adwc" style="margin:0"></span></div>
+  <div class="row" style="margin:0 0 8px;padding:10px 12px;border:1px dashed #b9cdd6;border-radius:12px;background:#f6fafb;align-items:center"><b style="font-size:13px">⚡ ElevenLabs direct</b><select id="elv" style="min-width:220px"><option value="">— voix (clique ↻) —</option></select><button class="b o s" id="elr" title="Charger mes voix ElevenLabs">↻</button><button class="b s" id="elg">🎙 Générer la voix avec ElevenLabs</button><span class="hint" id="els" style="margin:0"></span></div>
   <div class="row"><button class="b o s" id="advb">🎙 Importer la voix (MP3 / WAV)</button><button class="b o s" id="advx">✕ Retirer</button><input type="file" id="advf" accept="audio/*,.mp3,.wav,.m4a" hidden><span class="hint" id="advn" style="margin:0"></span></div></div>
   <label style="margin-top:12px">Consignes en plus (facultatif)<textarea id="adnote" rows="2" placeholder="Ex. : mettre en avant la terrasse, ton humoristique, insister sur le menu du midi…"></textarea></label>
   <div class="row" style="margin-top:10px"><button class="b" id="adkit2" style="padding:12px 20px;font-size:15px">📦 Créer le prompt + dossier pour Claude</button><span class="hint" id="adst2" style="margin:0"></span></div></div>

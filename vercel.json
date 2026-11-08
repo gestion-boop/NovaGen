@@ -11,6 +11,9 @@
   },
   "api/store.js": {
    "maxDuration": 60
+  },
+  "api/tts.js": {
+   "maxDuration": 60
   }
  },
  "headers": [

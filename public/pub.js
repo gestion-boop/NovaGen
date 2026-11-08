@@ -168,6 +168,17 @@ function bindAd() {
 
   { const sc = $('#adscript'), cnt = () => { const w = (sc.value.trim().match(/\S+/g) || []).length; $('#adwc').textContent = w ? '≈ ' + w + ' mots · ' + Math.round(w / 2.4) + ' s de voix' : ''; };
     sc.value = ad.script || ''; cnt(); sc.oninput = () => { ad.script = sc.value; cnt(); save(); };
+    { const sel = $('#elv'), els = t => { $('#els').textContent = t; };
+      const fill = vs => { sel.innerHTML = '<option value="">— choisis une voix —</option>' + vs.map(v => `<option value="${v.id}">${esc(v.name)}${v.cat === 'cloned' || v.cat === 'professional' ? ' ★' : ''}</option>`).join(''); const last = ad.voiceId || localStorage.getItem('ng_el_voice') || ''; if (last) sel.value = last; };
+      try { const c = JSON.parse(localStorage.getItem('ng_el_voices') || '[]'); if (c.length) fill(c); } catch (e) { }
+      const load = async () => { els('Chargement des voix…'); try { const r = await api('/api/tts', { mode: 'voices' }); localStorage.setItem('ng_el_voices', JSON.stringify(r.voices)); fill(r.voices); els(r.voices.length + ' voix'); } catch (e) { els('⚠ ' + e.message); } };
+      $('#elr').onclick = load; sel.onchange = () => { ad.voiceId = sel.value; localStorage.setItem('ng_el_voice', sel.value); save(); };
+      $('#elg').onclick = async () => { const t = sc.value.trim(); if (!t) { els('Écris ou génère d\'abord le texte ci-dessus.'); return; } if (!sel.value) { if (sel.options.length < 2) await load(); if (!sel.value) { els('Choisis une voix.'); return; } }
+        const btn = $('#elg'); btn.disabled = true; els('🎙 Génération… (' + Math.round((t.match(/\S+/g) || []).length / 2.3) + ' s de voix environ)');
+        try { const bl = await api('/api/tts', { mode: 'speak', text: t, voice: sel.value }, true), nm = 'voix_' + (sel.options[sel.selectedIndex].text.replace(/[^\w-]+/g, '_').replace(/_+$/, '')) + '_' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '') + '.mp3';
+          cur.adVoice = { blob: new Blob([bl], { type: 'audio/mpeg' }), name: nm }; save(); vn(); chk(); let d = ''; try { const ac = new (window.AudioContext || window.webkitAudioContext)(), b2 = await ac.decodeAudioData(await bl.arrayBuffer()); d = ' · ' + b2.duration.toFixed(1) + ' s'; ac.close(); } catch (e) { }
+          els('✔ Voix générée et importée' + d); const au = document.createElement('audio'); au.controls = true; au.src = URL.createObjectURL(bl); au.style.cssText = 'width:100%;margin-top:6px'; const old = $('#elau'); if (old) old.remove(); au.id = 'elau'; btn.closest('.row').after(au);
+        } catch (e) { els('⚠ ' + e.message); } btn.disabled = false; }; }
     $('#adgen').onclick = () => { sc.value = ad.script = adScript(cur.fiche || {}, +ad.dur || 45); cnt(); save(); };
     $('#adcp').onclick = async () => { try { await navigator.clipboard.writeText(sc.value); $('#adwc').textContent = '✔ Texte copié : colle-le dans ElevenLabs'; } catch (e) { sc.select(); } };
     const vn = () => { $('#advn').textContent = cur.adVoice ? '🎙 ' + cur.adVoice.name : 'Aucune voix importée.'; };
