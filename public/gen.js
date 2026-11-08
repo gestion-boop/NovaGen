@@ -404,7 +404,7 @@ const ICONS = {
    normal = icône crème · survol = icône couleur d'accent · pressé = bille claire crème, liseré et icône foncés. */
 const BTN_STYLE_PROMPT = 'Bouton rond glossy en verre : sphère très sombre (couleur de marque assombrie à 55 %) avec lueur douce au centre-haut, calotte de verre translucide sur la moitié haute (dégradé blanc 75 % vers transparent), petit éclat blanc ovale incliné en haut à gauche, fin liseré sable/doré, ombre ovale diffuse sous la bille, icône pictogramme à trait épais arrondi couleur crème. États : normal (icône crème), survol (icône couleur d\'accent chaude), pressé (bille claire crème, liseré et icône foncés, reflet atténué, légère réduction).';
 function btnPalette(f) {
-  const c2 = f.c2, c3 = f.c3 || mix(c2, '#ffffff', .5), light = lum(c2) > .62, cream = '#F2E6BC', sand = mix('#cdb88c', c2, .25);
+  const c2 = /^#[0-9a-f]{6}$/i.test(f.btnC || '') ? f.btnC : f.c2, c3 = f.c3 || mix(c2, '#ffffff', .5), light = false, cream = '#F2E6BC', sand = mix('#cdb88c', c2, .25);
   const dark = mix(c2, '#000000', light ? .75 : .58), deep = mix(c2, '#000000', .86);
   return {
     normal: { glow: mix(c2, '#ffffff', .12), mid: dark, edge: deep, rim: sand, rim2: mix(sand, '#000', .45), icon: light ? '#2a1a10' : cream, cap: .72, sw: 5 },
