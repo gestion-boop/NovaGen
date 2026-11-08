@@ -3,7 +3,7 @@ const SY = { on: false, q: new Map(), busy: false, t: 0, last: 0 };
 const syncStatus = (t, k) => { const e = document.getElementById('cl'); if (!e) return; e.textContent = t; e.style.color = k === 'e' ? '#ffd2cc' : ''; e.style.cursor = k === 'n' || k === 'e' ? 'pointer' : ''; e.title = SY.msg || ''; };
 const toB64 = blob => new Promise(r => { const f = new FileReader(); f.onload = () => r(String(f.result).split(',')[1]); f.readAsDataURL(blob); });
 const logoKey = p => p.logo.size + '|' + (p.logoAuto ? (p.fiche?.c1 || '') + (p.fiche?.c2 || '') : '');
-const strip = p => { const d = {}; for (const k in p) if (!['photos', 'logo', 'videos', 'barBgFile', 'adMusic', '_sv', '_sy'].includes(k)) d[k] = p[k]; d.photos = (p.photos || []).map(({ blob, ...r }) => r); d.logo = p.logo ? { k: logoKey(p) } : null; return d; };
+const strip = p => { const d = {}; for (const k in p) if (!['photos', 'logo', 'videos', 'barBgFile', 'adMusic', 'adVoice', '_sv', '_sy'].includes(k)) d[k] = p[k]; d.photos = (p.photos || []).map(({ blob, ...r }) => r); d.logo = p.logo ? { k: logoKey(p) } : null; return d; };
 
 async function pushOne(p) {
   const sy = p._sy || { photos: [], logo: '' }, have = new Set(sy.photos);
@@ -32,7 +32,7 @@ async function pullOne(id) {
   if (bad) throw new Error('photos injoignables');
   const p = Object.assign({}, d, { photos, logo: null });
   if (d.logo && urls['logo.png']) { const r = await fetch(urls['logo.png']); if (!r.ok) throw new Error('logo injoignable'); p.logo = await r.blob(); }
-  { const lv = (await dbAll()).find(x => x.id === id); if (lv && lv.videos) p.videos = lv.videos; if (lv && lv.barBgFile) p.barBgFile = lv.barBgFile; if (lv && lv.adMusic) p.adMusic = lv.adMusic; }
+  { const lv = (await dbAll()).find(x => x.id === id); if (lv && lv.videos) p.videos = lv.videos; if (lv && lv.barBgFile) p.barBgFile = lv.barBgFile; if (lv && lv.adMusic) p.adMusic = lv.adMusic; if (lv && lv.adVoice) p.adVoice = lv.adVoice; }
   p._sv = Date.parse(row.updated_at); p._sy = { photos: photos.map(x => x.id), logo: d.logo ? d.logo.k : '' };
   await dbPutRaw(p);
 }

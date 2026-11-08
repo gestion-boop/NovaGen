@@ -18,6 +18,27 @@ function adTexts(f) {
   return o;
 }
 
+/* texte de voix off (à coller dans ElevenLabs) : phrases courtes, chiffres écrits pour être lus */
+function adSpeak(t) { return String(t || '').replace(/(\d+)\s*[,.]\s*(\d+)\s*€/g, (m, a, b) => a + ' euros ' + (b.length === 1 ? b + '0' : b)).replace(/(\d+)\s*€/g, '$1 euros').replace(/&/g, ' et ').replace(/\s*·\s*/g, ', ').replace(/\s+/g, ' ').trim(); }
+function adScript(f, dur) {
+  const nom = f.nom || 'notre établissement', ville = f.ville || '', typ = f.type, max = Math.round((dur || 45) * 2.1), P = [];
+  const sl = adSpeak(adTxt(f.slogan)), d = adSpeak(adTxt(f.descCourte)), L = s => { const x = String(s || '').replace(/[.!?…\s]+$/, ''); return x ? x + '.' : ''; };
+  P.push(typ === 'hebergement' ? `Envie d'une vraie parenthèse${ville ? ' à ' + ville : ''} ?` : typ === 'commerce' ? `Vous connaissez ${nom} ?` : `Vous cherchez la bonne adresse${ville ? ' à ' + ville : ''} ?`);
+  P.push(L(nom + (sl ? ', ' + sl.charAt(0).toLowerCase() + sl.slice(1) : d ? ', ' + d.charAt(0).toLowerCase() + d.slice(1) : '')));
+  if (sl && d) P.push(L(d));
+  const items = parseCarte(f.carteTxt).flatMap(c => c.items).filter(i => i.nom && i.prix), pick = [], step = Math.max(1, Math.floor(items.length / 3));
+  for (let i = 0; i < items.length && pick.length < 3; i += step) pick.push(items[i]);
+  if (pick.length) P.push(L('Au menu : ' + pick.map(i => adSpeak(i.nom) + ', à ' + adSpeak(i.prix)).join(' ... ')));
+  const sv = (f.services || []).map(adTxt).filter(Boolean).slice(0, 3); if (sv.length) P.push(L(sv.map(adSpeak).join(', ')));
+  const adr = adAdr(f), tel = String(f.tel || '').replace(/^\+33\s*/, '0').replace(/\s+/g, ' ').trim();
+  P.push(L(`Venez nous voir${adr ? ' : ' + adr.replace(/,?\s*\d{5}\s*/, ', ') : ''}`));
+  if (tel) P.push(L((typ === 'hebergement' ? 'Réservez au ' : 'Réservez votre table au ') + tel));
+  P.push(L(nom + (ville ? ', ' + ville : '')));
+  let out = P.filter(Boolean), words = x => x.join(' ').split(/\s+/).length;
+  while (words(out) > max && out.length > 4) { const i = out.findIndex(x => /^Au menu|^Fait|,/.test(x) && x !== out[1] && x !== out[0]); out.splice(i > 0 && i < out.length - 3 ? i : 2, 1); }
+  return out.join('\n\n');
+}
+
 async function adAssets(p) {
   const bm = async b => { try { return await createImageBitmap(b); } catch (e) { return null; } };
   const photos = (await Promise.all((p.photos || []).slice(0, 8).map(x => bm(x.blob)))).filter(Boolean), logo = p.logo ? await bm(p.logo) : null;
@@ -151,9 +172,17 @@ function bindAd() {
     const r = await run.done; reset(); poster();
     if (r && r.blob.size > 1000 && r.ok) { const ext = /mp4/.test(r.blob.type) ? 'mp4' : 'webm', a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = (cur.fiche.nom || 'pub').replace(/[^\w-]+/g, '_') + '_pub_' + (ad.fmt || '9:16').replace(':', 'x') + '.' + ext; document.body.appendChild(a); a.click(); a.remove(); st(`✔ Vidéo prête (${ext.toUpperCase()}, ${(r.blob.size / 1048576).toFixed(1)} Mo) : regarde ton dossier Téléchargements.`); } else st('Enregistrement interrompu : relance l\'export.');
   };
-  const chk = () => { const el = $('#adchk'); if (!el) return; const f = cur.fiche || {}, np = (cur.photos || []).length, nc = (parseCarte(f.carteTxt) || []).reduce((n, c) => n + c.items.length, 0), L = [[np >= 5, np + ' photo' + (np > 1 ? 's' : ''), np < 5 ? 'idéal : 6 à 12, variées (plat, terrasse, salle, équipe)' : ''], [!!cur.logo, 'Logo', ''], [!!cur.adMusic, 'Musique', 'sinon vidéo muette'], [!!(f.slogan || f.descCourte || f.description), 'Accroche / description', ''], [!!(f.adresse && f.tel), 'Adresse + téléphone', 'pour la fin de la vidéo'], [nc > 0 || f.type === 'hebergement', f.type === 'hebergement' ? 'Hébergement' : nc + ' plats', '']]; el.innerHTML = L.map(([ok, t, h]) => `<span class="chip ${ok ? 'ok' : 'ko'}" title="${h}">${ok ? '✔' : '○'} ${t}${!ok && h ? ' — <i>' + h + '</i>' : ''}</span>`).join(''); };
+  const chk = () => { const el = $('#adchk'); if (!el) return; const f = cur.fiche || {}, np = (cur.photos || []).length, nc = (parseCarte(f.carteTxt) || []).reduce((n, c) => n + c.items.length, 0), L = [[np >= 5, np + ' photo' + (np > 1 ? 's' : ''), np < 5 ? 'idéal : 6 à 12, variées (plat, terrasse, salle, équipe)' : ''], [!!cur.logo, 'Logo', ''], [!!cur.adMusic, 'Musique', 'sinon vidéo muette'], [!!cur.adVoice, 'Voix off', 'facultatif : génère le texte, fais-le lire par ElevenLabs, importe le MP3'], [!!(f.slogan || f.descCourte || f.description), 'Accroche / description', ''], [!!(f.adresse && f.tel), 'Adresse + téléphone', 'pour la fin de la vidéo'], [nc > 0 || f.type === 'hebergement', f.type === 'hebergement' ? 'Hébergement' : nc + ' plats', '']]; el.innerHTML = L.map(([ok, t, h]) => `<span class="chip ${ok ? 'ok' : 'ko'}" title="${h}">${ok ? '✔' : '○'} ${t}${!ok && h ? ' — <i>' + h + '</i>' : ''}</span>`).join(''); };
   chk(); if ($('#adnote')) { $('#adnote').value = ad.note || ''; $('#adnote').oninput = () => { ad.note = $('#adnote').value; save(); }; }
   const mkKit = async () => { const s2 = $('#adst2'); st('Préparation du dossier…'); if (s2) s2.textContent = 'Préparation…'; const k = await adKit(cur), a = document.createElement('a'); a.href = URL.createObjectURL(k.blob); a.download = 'Dossier_pub_' + (cur.fiche.nom || 'etablissement').replace(/[^\w-]+/g, '_') + '.zip'; document.body.appendChild(a); a.click(); a.remove(); let m; try { await navigator.clipboard.writeText(k.prompt); m = '✔ ZIP téléchargé et message copié. Ouvre Claude, dépose le ZIP, colle le message (Cmd+V).'; } catch (e) { m = '✔ ZIP téléchargé. Dépose-le dans Claude avec : ' + k.prompt; } st(m); if (s2) s2.textContent = m; };
+
+  { const sc = $('#adscript'), cnt = () => { const w = (sc.value.trim().match(/\S+/g) || []).length; $('#adwc').textContent = w ? '≈ ' + w + ' mots · ' + Math.round(w / 2.4) + ' s de voix' : ''; };
+    sc.value = ad.script || ''; cnt(); sc.oninput = () => { ad.script = sc.value; cnt(); save(); };
+    $('#adgen').onclick = () => { sc.value = ad.script = adScript(cur.fiche || {}, +ad.dur || 45); cnt(); save(); };
+    $('#adcp').onclick = async () => { try { await navigator.clipboard.writeText(sc.value); $('#adwc').textContent = '✔ Texte copié : colle-le dans ElevenLabs'; } catch (e) { sc.select(); } };
+    const vn = () => { $('#advn').textContent = cur.adVoice ? '🎙 ' + cur.adVoice.name : 'Aucune voix importée.'; };
+    vn(); $('#advb').onclick = () => $('#advf').click(); $('#advf').onchange = () => { const x = $('#advf').files[0]; if (!x) return; cur.adVoice = { blob: x, name: x.name }; save(); vn(); chk(); };
+    $('#advx').onclick = () => { cur.adVoice = null; save(); vn(); chk(); }; }
   if ($('#adkit2')) $('#adkit2').onclick = mkKit;
   $('#adkit').onclick = mkKit;
   poster();
@@ -168,6 +197,7 @@ async function adKit(p) {
   if (p.adMusic && p.adMusic.blob) zip.file('musique/' + p.adMusic.name.replace(/[^\w.-]+/g, '_'), p.adMusic.blob);
   const styD = { 1: 'Dynamique : coupes rythmées sur les temps forts, zooms rapides, flash blanc à chaque changement, titres en capitales grasses avec une barre de couleur, barre de progression.', 2: 'Élégant : fondus enchaînés lents, Ken Burns doux, titres en serif avec un filet doré, ambiance haut de gamme.', 3: 'Minimal : fond clair, photos encadrées aux coins arrondis qui glissent, légendes sobres en dessous, beaucoup d\'air.' }[ad.style || 1];
   let bts = [], mdur = 0; if (p.adMusic && p.adMusic.blob) { try { const ac = new (window.AudioContext || window.webkitAudioContext)(), mu = await ac.decodeAudioData(await p.adMusic.blob.arrayBuffer()); ac.close(); mdur = mu.duration; const off0 = Math.max(0, +ad.offset || 0), sr = mu.sampleRate; bts = adBeats({ getChannelData: () => mu.getChannelData(0).subarray(Math.floor(off0 * sr)), sampleRate: sr }, dur + 1).map(x => +x.toFixed(2)); } catch (e) { } }
+  let vdur = 0; if (p.adVoice && p.adVoice.blob) { zip.file('voix/' + p.adVoice.name.replace(/[^\w.-]+/g, '_'), p.adVoice.blob); try { const ac = new (window.AudioContext || window.webkitAudioContext)(); vdur = (await ac.decodeAudioData(await p.adVoice.blob.arrayBuffer())).duration; ac.close(); } catch (e) { } }
   const adr = adAdr(f), ig = (String(f.instagram || '').match(/instagram\.com\/([^/?#]+)/i) || [])[1];
   const plats = cats.flatMap(c => c.items.filter(i => i.prix).map(i => `- ${i.nom} — ${i.prix}`)).slice(0, 12);
   const md = `# Brief vidéo publicitaire — ${f.nom}
@@ -208,7 +238,7 @@ ${plats.length ? '\n### Plats et prix\n' + plats.join('\n') : ''}
   const typ = f.type === 'hebergement' ? 'hébergement' : f.type === 'commerce' ? 'commerce' : 'restaurant / bar';
   const SHOTS = { 'restaurant / bar': ['plat signature en gros plan (vapeur, texture, sauce qui coule)', 'terrasse ou façade (donne l\'ambiance et le lieu)', 'salle intérieure / comptoir / cuisine en action', 'boisson ou dessert', 'équipe ou patron souriant (humain)'], 'hébergement': ['façade ou vue d\'ensemble (on comprend tout de suite : gîte, camping, hôtel)', 'chambre / lit', 'salle de bain ou cuisine', 'piscine / terrasse / extérieur / vue', 'petit détail déco ou petit-déjeuner'], 'commerce': ['devanture', 'produit phare en gros plan', 'intérieur / rayons', 'artisan ou vendeur en action', 'détail produit'] }[typ];
   const pm = `# PROMPT — Vidéo publicitaire « ${f.nom} »
-> À lire en entier avant de commencer. Dossier joint : photos/, logo.png, musique/, reference/ (vidéo modèle + storyboard), fiche.json, beats.json, LIRE-MOI_brief.md (données et textes).
+> À lire en entier avant de commencer. Dossier joint : photos/, logo.png, musique/, voix/ (si fournie), reference/ (vidéo modèle + storyboard), fiche.json, beats.json, LIRE-MOI_brief.md (données et textes).
 
 ## 0. Ta mission
 Tu es **monteur motion designer de haut niveau** (niveau grandes chaînes YouTube / Reels / TikTok qui font des millions de vues). Réalise une publicité **${dur} s maximum**, **${fmt} (${W}×${H})**, **MP4 H.264 + AAC, 30 i/s**, pour **${f.nom}** (${typ}${f.ville ? ', ' + f.ville : ''}). Ce n'est pas un diaporama : c'est un **montage nerveux, très calé sur la musique, avec des animations de texte, des transitions « clic » et du sound design**.
@@ -260,6 +290,14 @@ Ajoute par-dessus la musique, **discret mais présent** (−12 à −18 dB sous 
 - **pop / clic** sur les mots et prix qui apparaissent, **riser** de 1 s avant le mot de fin,
 - Si tu n'as pas de banque sonore, **synthétise-les** (bruit filtré + enveloppe pour les whoosh, sinus court pour les clics) avec ffmpeg ou Python. La musique reste dominante ; baisse-la de 3 dB pendant l'impact final.
 
+${p.adVoice ? `## 5 bis. VOIX OFF (fichier voix/${p.adVoice.name.replace(/[^\w.-]+/g, '_')}${vdur ? ', durée ' + vdur.toFixed(1) + ' s' : ''})
+- La voix est **le fil conducteur** : monte les images **sur ce que dit la voix** (le texte exact est dans voix/texte_voix_off.txt). Quand la voix cite un plat, montre la photo de ce plat ; quand elle cite l'adresse, montre la devanture ou la terrasse.
+- Repère le début de chaque phrase dans l'audio (ffmpeg silencedetect, ou transcription avec horodatage) et fais tomber les **changements de plan, mots-clés à l'écran et impacts** sur ces débuts de phrase.
+- **Mixage** : musique à −14 dB sous la voix pendant qu'elle parle, remontée à plein niveau dans les silences et sur le hook ; voix à −3 dB, légèrement compressée. Sous-titres animés mot par mot synchronisés sur la voix (gros, en bas, hors zone d'interface).
+${vdur > dur ? '- ⚠️ La voix dure plus que la vidéo (' + vdur.toFixed(1) + ' s pour ' + dur + ' s) : accélère légèrement la voix (+5 %) ou coupe la fin du texte, et dis-le-moi.' : ''}
+` : ad.script && ad.script.trim() ? `## 5 bis. VOIX OFF (prévue, fichier pas encore fourni)
+Le texte prévu est dans voix/texte_voix_off.txt. Prévois les emplacements dans le montage et dis-moi quand tu attends le fichier audio ; ne génère pas de voix toi-même.
+` : ''}
 ## 6. Textes de la vidéo (à utiliser tels quels, rien d'inventé)
 ${tx.map((t, i) => `- Scène ${i + 1} : ${t.tag ? t.tag + ' — ' : ''}${t.big}${t.small ? ' — ' + t.small : ''}`).join('\n') || '- (aucun)'}
 Les textes sont des **suggestions de contenu** : tu peux les raccourcir et les rythmer (max 6 mots par écran), mais ne change pas les prix, noms et coordonnées.
@@ -277,6 +315,7 @@ ${ad.note ? '## 8 bis. Consignes spécifiques du client\n' + ad.note + '\n\n' : 
 2. Montre-moi **3 images d'aperçu** (hook, scène, fin). J'attends mon accord.
 3. Puis génère le MP4 final et **envoie-le comme fichier**, avec la liste des photos écartées ou à refaire.
 `;
+  if (ad.script && ad.script.trim()) zip.file('voix/texte_voix_off.txt', ad.script.trim());
   zip.file('PROMPT_VIDEO.md', pm); try { for (const n of ['reference_pub.mp4', 'storyboard.jpg']) { const r = await fetch('ref/' + n); if (r.ok) zip.file('reference/' + n, await r.blob()); } } catch (e) { } if (bts.length) zip.file('beats.json', JSON.stringify({ duree_musique_s: +mdur.toFixed(1), decalage_s: +ad.offset || 0, temps_forts_s: bts }, null, 1));
   zip.file('LIRE-MOI_brief.md', md); zip.file('fiche.json', JSON.stringify(Object.assign({}, f, { _logo: undefined, _fond: undefined }), null, 1));
   return { blob: await zip.generateAsync({ type: 'blob' }), prompt: `Voici le dossier de ${f.nom}. Lis d'abord PROMPT_VIDEO.md en entier et regarde reference/storyboard.jpg (vidéo modèle à égaler) (puis LIRE-MOI_brief.md pour les données) et réalise la vidéo publicitaire demandée (${dur} s max, ${fmt}) : montage motion design nerveux, hook fort, transitions et bruitages calés sur les temps forts de beats.json, photos choisies en cohérence avec chaque texte. Utilise les photos, le logo et la musique du dossier.` };
