@@ -1,7 +1,7 @@
 /* NovaGen — interface */
 const $ = s => document.querySelector(s);
 const DAYN = DAYS.fr;
-let cur = null, urls = [], saveT = 0, cityF = '';
+let cur = null, urls = [], saveT = 0, cityF = '', statF = '';
 
 /* ---------- stockage (IndexedDB) ---------- */
 const idb = new Promise((ok, ko) => { const r = indexedDB.open('novagen', 1); r.onupgradeneeded = () => r.result.createObjectStore('p', { keyPath: 'id' }); r.onsuccess = () => ok(r.result); r.onerror = ko; });
@@ -113,6 +113,16 @@ function askDelete(p, done) {
 }
 
 /* ---------- rendu ---------- */
+/* avancement d'un établissement, dans l'ordre chronologique du travail */
+function progOf(p) {
+  const f = p.fiche || {}, steps = [
+    ['Fiche', 'infos', !!(f.nom && (f.adresse || f.tel || (f.horaires || []).length))],
+    ['Photos', 'medias', !!p.logo && !p.logoAuto && (p.photos || []).length >= 3],
+    ['Carte', 'infos', f.type === 'hebergement' || f.type === 'commerce' || (f.carteTxt || '').trim().length > 10],
+    ['Pages en ligne', 'pages', Object.keys(p.pub || {}).length >= 3]
+  ], done = steps.filter(x => x[2]).length, nx = steps.find(x => !x[2]);
+  return { done, total: steps.length, next: nx ? nx[0] : '', tab: nx ? nx[1] : '', ok: !nx };
+}
 function renderList() {
   dbAll().then(everything => {
     const LIM = 30 * 864e5, now = Date.now();
@@ -121,8 +131,8 @@ function renderList() {
     all.sort((a, b) => b.upd - a.upd);
     all.filter(p => p.logo && p.logoLight === undefined).forEach(async p => { p.logoLight = await logoIsLight(p.logo); await dbPut(p); if (cur && cur.id === p.id) cur.logoLight = p.logoLight; renderList(); });
     const vs = [...new Set(all.map(p => p.fiche?.ville || p.links?.ville).filter(Boolean))].sort(); if (cityF && !vs.includes(cityF)) cityF = '';
-    const shown = cityF ? all.filter(p => (p.fiche?.ville || p.links?.ville) === cityF) : all;
-    $('#list').innerHTML = (vs.length > 1 ? `<select id="cf" style="margin:0 0 8px"><option value="">Toutes les villes (${all.length})</option>${vs.map(v => `<option ${v === cityF ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : '') + shown.map(p => `<div class="pj ${cur && cur.id === p.id ? 'on' : ''}" data-id="${p.id}">${p.logo ? `<img src="${URL.createObjectURL(p.logo)}" style="background:${logoBg(p)}">` : '<img>'}<div>${esc(p.fiche?.nom || p.links.nom || p.links.site || 'Nouveau')}<small>${esc(p.fiche?.ville || '')}</small></div><button class="x" data-del="${p.id}" title="Supprimer">✕</button></div>`).join('') || '<div class="hint" style="padding:6px">Aucun pour le moment.</div>';
+    const pr = new Map(all.map(p => [p.id, progOf(p)])), nTodo = all.filter(p => !pr.get(p.id).ok).length, byCity = cityF ? all.filter(p => (p.fiche?.ville || p.links?.ville) === cityF) : all, shown = statF === 'todo' ? byCity.filter(p => !pr.get(p.id).ok) : statF === 'done' ? byCity.filter(p => pr.get(p.id).ok) : byCity;
+    $('#list').innerHTML = `<div class="sfl">${[['', 'Tous', all.length], ['todo', 'À finir', nTodo], ['done', 'Terminés', all.length - nTodo]].map(([k, n, c]) => `<button data-sf="${k}" class="${statF === k ? 'on' : ''}">${n} <b>${c}</b></button>`).join('')}</div>` + (vs.length > 1 ? `<select id="cf" style="margin:0 0 8px"><option value="">Toutes les villes (${all.length})</option>${vs.map(v => `<option ${v === cityF ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : '') + shown.map(p => `<div class="pj ${cur && cur.id === p.id ? 'on' : ''}" data-id="${p.id}">${p.logo ? `<img src="${URL.createObjectURL(p.logo)}" style="background:${logoBg(p)}">` : '<img>'}<div>${esc(p.fiche?.nom || p.links.nom || p.links.site || 'Nouveau')}<small>${esc(p.fiche?.ville || '')}${pr.get(p.id).ok ? ' · ✔ terminé' : ' · → ' + esc(pr.get(p.id).next)}</small><div class="pgb"><i style="width:${Math.round(pr.get(p.id).done / pr.get(p.id).total * 100)}%"></i></div></div><button class="x" data-del="${p.id}" title="Supprimer">✕</button></div>`).join('') || '<div class="hint" style="padding:6px">Aucun pour le moment.</div>';
     const tr = document.getElementById('trash'); if (tr) tr.remove();
     if (trash.length) { const d = document.createElement('div'); d.id = 'trash'; d.style.cssText = 'margin-top:14px;border-top:1px solid var(--line);padding-top:10px';
       d.innerHTML = `<details ${window.__tOpen ? 'open' : ''}><summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--mu)">🗑 Corbeille (${trash.length}) — gardée 30 jours</summary>${trash.map(p => { const j = Math.max(0, 30 - Math.floor((now - p.del) / 864e5)); return `<div style="display:flex;align-items:center;gap:6px;padding:7px 2px;font-size:13px"><div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.fiche?.nom || p.links?.nom || p.links?.site || 'Sans nom')}</div><small style="color:var(--mu)">${j} jour(s) restant(s)</small></div><button class="b o s" data-rest="${p.id}">Restaurer</button><button class="x" data-purge="${p.id}" title="Supprimer définitivement" style="border:0;background:none;cursor:pointer;color:var(--mu);font-size:15px">✕</button></div>`; }).join('')}</details>`;
@@ -130,10 +140,11 @@ function renderList() {
       d.querySelectorAll('[data-rest]').forEach(b => b.onclick = async () => { const p = trash.find(x => x.id === b.dataset.rest); delete p.del; p.upd = Date.now(); await dbPut(p); cur = p; renderList(); render(); });
       d.querySelectorAll('[data-purge]').forEach(b => b.onclick = async () => { const p = trash.find(x => x.id === b.dataset.purge); if (confirm('Supprimer définitivement « ' + (p.fiche?.nom || p.links?.nom || 'cet établissement') + ' » ? Cette action est irréversible.')) { await dbDel(p.id); renderList(); } });
     }
+    document.querySelectorAll('[data-sf]').forEach(b => b.onclick = () => { statF = b.dataset.sf; renderList(); });
     const cf = $('#cf'); if (cf) cf.onchange = () => { cityF = cf.value; renderList(); };
     document.querySelectorAll('.pj').forEach(e => e.onclick = async ev => {
       if (ev.target.dataset.del) { askDelete(all.find(p => p.id === ev.target.dataset.del), async p => { p.del = Date.now(); await dbPut(p); if (cur && cur.id === p.id) cur = all.find(x => x.id !== p.id) || null; renderList(); render(); }); return; }
-      cur = all.find(p => p.id === e.dataset.id); render(); renderList();
+      cur = all.find(p => p.id === e.dataset.id); { const pg = progOf(cur); if (!pg.ok && cur.fiche) cur._tab = pg.tab; } render(); renderList();
     });
   });
 }
@@ -157,7 +168,7 @@ function render() {
   tabsUi(m, f);
 }
 /* ---------- navigation par onglets (présentation) ---------- */
-const TABS = [['infos', '📝', 'Infos'], ['style', '🎨', 'Style'], ['medias', '🖼', 'Photos & vidéos'], ['pages', '🚀', 'Pages']];
+const TABS = [['infos', '📝', 'Infos'], ['medias', '🖼', 'Photos & vidéos'], ['style', '🎨', 'Style'], ['pages', '🚀', 'Pages']];
 function tabsUi(m, f) {
   const key = c => { const t = (c.querySelector('h2') || {}).textContent || ''; return /Assistant/.test(t) ? 'dock' : /Liens|Fiche/.test(t) ? 'infos' : /Style/.test(t) ? 'style' : /Photos|Vidéos/.test(t) ? 'medias' : /Générer|Barre/.test(t) ? 'pages' : 'infos'; };
   [...m.children].filter(c => c.classList.contains('card')).forEach(c => { c.dataset.t = key(c); if (c.dataset.t === 'dock') { c.classList.add('dock', 'min'); const h = c.querySelector('h2'); h.onclick = () => c.classList.toggle('min'); } });
@@ -188,14 +199,14 @@ function ficheHtml(f) {
    <div class="g2"><label>Horaires (un jour par ligne, vide ou « Fermé »)<div style="display:grid;gap:5px;margin-top:5px">${DAYN.map((d, i) => `<div style="display:grid;grid-template-columns:84px 1fr;gap:8px;align-items:center"><span style="font-weight:600;color:var(--ink)">${d}</span><input data-h="${i}" style="margin:0" value="${esc((f.horaires || [])[i] || '')}" placeholder="12h–14h · 19h–22h"></div>`).join('')}</div></label>
    <div><label>Services (un par ligne)<textarea data-sv rows="6">${esc((f.services || []).map(s => s.fr || s).join('\n'))}</textarea></label>
    <label>Carte — « # Catégorie » puis « Plat | prix | description »<textarea data-f="carteTxt" rows="8" placeholder="# Burgers&#10;Le Classique | 12,50 € | steak, cheddar">${esc(f.carteTxt || '')}</textarea></label><div class="row" style="margin-top:8px"><button class="b o s" id="cim">📄 Importer la carte (PDF, JPG, PNG)</button><input type="file" id="cif" accept="application/pdf,image/*" multiple hidden><span class="hint" id="cm" style="margin:0">Je lis le fichier, je remplis la carte et j'ouvre l'aperçu.</span></div></div></div></div>
-  <div class="card"><h2><i>3</i> Style</h2><div class="g4">
+  <div class="card"><h2><i>5</i> Style</h2><div class="g4">
    <label>Couleur sombre<input type="color" data-f="c1" value="${f.c1 || '#1f2a44'}"></label><label>Accent<input type="color" data-f="c2" value="${f.c2 || '#2b899d'}"></label><label>Survol des boutons<input type="color" data-f="c3" value="${f.c3 || '#f2b632'}"></label><div style="grid-column:1/-1" class="row"><button class="b o s" id="nch">🎨 Nouvelle charte graphique</button><button class="b o s" id="nchr" title="Palette et style au hasard">🎲 Au hasard</button><span class="hint" style="margin:0">Palette (et style) différents des autres établissements.</span></div><label style="margin:0">Couleur des boutons de la barre<input type="color" data-f="btnC" value="${/^#[0-9a-f]{6}$/i.test(f.btnC || '') ? f.btnC : (f.c2 || '#2b899d')}"></label><div class="row" style="align-self:end"><button class="b o s" id="btnauto">↺ Couleur de l'accent</button>${['#8c1d2b|Rouge', '#1d5c3a|Vert', '#1f3a6e|Bleu', '#b8862b|Or', '#6b3f2e|Brun', '#2b2623|Noir'].map(x => `<button class="b o s" data-bc="${x.split('|')[0]}" title="${x.split('|')[1]}" style="width:26px;height:26px;padding:0;border-radius:50%;background:${x.split('|')[0]}"></button>`).join('')}</div><div style="grid-column:1/-1" class="row"><button class="b o s" id="psave">💾 Mémoriser mes réglages pour tous les « ${TYPE_LAB[f.type] || 'restaurant / bar'} »</button><span class="hint" style="margin:0">Styles des pages, titres, forme du logo et barre du bas : repris automatiquement à chaque nouvel établissement de ce type.${getProfiles()[f.type || 'restaurant'] ? ' <b>✔ Réglages déjà mémorisés.</b>' : ''}</span></div>
    <label>Titres<select data-f="police"><option value="serif" ${f.police !== 'sans' ? 'selected' : ''}>Élégant (serif + script)</option><option value="sans" ${f.police === 'sans' ? 'selected' : ''}>Moderne (Montserrat gras)</option></select></label></div>
    <div class="g2"><label>Style des pages (carte, galerie, infos, intro)<select data-f="style"><option value="" ${!f.style ? 'selected' : ''}>Auto — ${(STYLES.find(x => x[0] === styleOf(f)) || [])[1]} (propre à cet établissement)</option>${STYLES.map(([k, n]) => `<option value="${k}" ${String(f.style) === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label><div style="padding-top:22px"><button class="b o s" id="fromlogo">🎨 Couleurs depuis le logo</button></div></div></div>
-  <div class="card"><h2><i>4</i> Photos <small style="font-weight:400;color:var(--mu)" id="pc"></small></h2><p class="hint">★ = photo de fond de l'intro. ✕ = retirer. Tu peux en déposer d'autres.</p>
+  <div class="card"><h2><i>3</i> Photos <small style="font-weight:400;color:var(--mu)" id="pc"></small></h2><p class="hint">★ = photo de fond de l'intro. ✕ = retirer. Tu peux en déposer d'autres.</p>
    <div class="drop" id="phd">Glisser des photos (ou un ZIP de photos) ici, ou cliquer. Tu peux aussi coller des images avec Cmd+V.<input type="file" id="phf" accept="image/*,.zip" multiple hidden></div>
    <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--b1)">Importer depuis des liens d'images (Facebook, Instagram, site…)</summary><p class="hint" style="margin:8px 0">Sur Facebook : clic droit sur une photo → « Copier l'adresse de l'image », puis colle les adresses ici (une par ligne ou séparées par un espace).</p><textarea id="pu" rows="4" placeholder="https://scontent…"></textarea><div class="row" style="margin-top:8px"><button class="b o s" id="pub2">Importer ces liens</button><span class="hint" id="pm" style="margin:0"></span></div></details><div class="ph" id="ph"></div></div>
-  <div class="card"><h2><i>5</i> Vidéos &amp; compléments</h2><p class="hint">Pour la page Vidéo (cadre téléphone, son, rejouer). Plusieurs vidéos = lues l'une après l'autre. Déployer accepte ~3 Mo par fichier ; au-delà, télécharge le ZIP et dépose-le sur Vercel. Les vidéos restent sur cet ordinateur (non synchronisées).</p>
+  <div class="card"><h2><i>4</i> Vidéos &amp; compléments</h2><p class="hint">Pour la page Vidéo (cadre téléphone, son, rejouer). Plusieurs vidéos = lues l'une après l'autre. Déployer accepte ~3 Mo par fichier ; au-delà, télécharge le ZIP et dépose-le sur Vercel. Les vidéos restent sur cet ordinateur (non synchronisées).</p>
    <div class="drop" id="vdd">Glisser des vidéos (mp4, webm, mov) ici, ou cliquer<input type="file" id="vdf" accept="video/*" multiple hidden></div><div id="vl" style="margin-top:8px"></div>
    <div class="g2" style="margin-top:10px"><label>Étiquette<input data-f="videoSur" value="${esc(f.videoSur || '')}" placeholder="Notre signature"></label><label>Titre de la page vidéo<input data-f="videoTitre" value="${esc(f.videoTitre || '')}" placeholder="Le Flambadou"></label></div>
    <label>Texte à côté de la vidéo<textarea data-f="videoTexte" rows="3" placeholder="Une cuisson ancestrale…">${esc(f.videoTexte || '')}</textarea></label>
