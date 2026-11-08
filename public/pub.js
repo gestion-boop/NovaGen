@@ -151,7 +151,11 @@ function bindAd() {
     const r = await run.done; reset(); poster();
     if (r && r.blob.size > 1000 && r.ok) { const ext = /mp4/.test(r.blob.type) ? 'mp4' : 'webm', a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = (cur.fiche.nom || 'pub').replace(/[^\w-]+/g, '_') + '_pub_' + (ad.fmt || '9:16').replace(':', 'x') + '.' + ext; document.body.appendChild(a); a.click(); a.remove(); st(`✔ Vidéo prête (${ext.toUpperCase()}, ${(r.blob.size / 1048576).toFixed(1)} Mo) : regarde ton dossier Téléchargements.`); } else st('Enregistrement interrompu : relance l\'export.');
   };
-  $('#adkit').onclick = async () => { st('Préparation du dossier…'); const k = await adKit(cur), a = document.createElement('a'); a.href = URL.createObjectURL(k.blob); a.download = 'Dossier_pub_' + (cur.fiche.nom || 'etablissement').replace(/[^\w-]+/g, '_') + '.zip'; document.body.appendChild(a); a.click(); a.remove(); try { await navigator.clipboard.writeText(k.prompt); st('✔ Dossier téléchargé. Le message à coller dans Claude est copié : dépose le ZIP dans la conversation, puis colle-le.'); } catch (e) { st('✔ Dossier téléchargé. Dépose-le dans une conversation Claude avec : ' + k.prompt); } };
+  const chk = () => { const el = $('#adchk'); if (!el) return; const f = cur.fiche || {}, np = (cur.photos || []).length, nc = (parseCarte(f.carteTxt) || []).reduce((n, c) => n + c.items.length, 0), L = [[np >= 5, np + ' photo' + (np > 1 ? 's' : ''), np < 5 ? 'idéal : 6 à 12, variées (plat, terrasse, salle, équipe)' : ''], [!!cur.logo, 'Logo', ''], [!!cur.adMusic, 'Musique', 'sinon vidéo muette'], [!!(f.slogan || f.descCourte || f.description), 'Accroche / description', ''], [!!(f.adresse && f.tel), 'Adresse + téléphone', 'pour la fin de la vidéo'], [nc > 0 || f.type === 'hebergement', f.type === 'hebergement' ? 'Hébergement' : nc + ' plats', '']]; el.innerHTML = L.map(([ok, t, h]) => `<span class="chip ${ok ? 'ok' : 'ko'}" title="${h}">${ok ? '✔' : '○'} ${t}${!ok && h ? ' — <i>' + h + '</i>' : ''}</span>`).join(''); };
+  chk(); if ($('#adnote')) { $('#adnote').value = ad.note || ''; $('#adnote').oninput = () => { ad.note = $('#adnote').value; save(); }; }
+  const mkKit = async () => { const s2 = $('#adst2'); st('Préparation du dossier…'); if (s2) s2.textContent = 'Préparation…'; const k = await adKit(cur), a = document.createElement('a'); a.href = URL.createObjectURL(k.blob); a.download = 'Dossier_pub_' + (cur.fiche.nom || 'etablissement').replace(/[^\w-]+/g, '_') + '.zip'; document.body.appendChild(a); a.click(); a.remove(); let m; try { await navigator.clipboard.writeText(k.prompt); m = '✔ ZIP téléchargé et message copié. Ouvre Claude, dépose le ZIP, colle le message (Cmd+V).'; } catch (e) { m = '✔ ZIP téléchargé. Dépose-le dans Claude avec : ' + k.prompt; } st(m); if (s2) s2.textContent = m; };
+  if ($('#adkit2')) $('#adkit2').onclick = mkKit;
+  $('#adkit').onclick = mkKit;
   poster();
 }
 
@@ -268,7 +272,7 @@ Image forte + « Venez nous voir » + **${f.nom}** + adresse (${adr || '—'}) +
 - Couleurs de la charte : ${f.c1 || ''} / ${f.c2 || ''} / ${f.c3 || ''}. Police : ${ad.style == 2 ? 'Playfair Display' : 'Montserrat (gras)'}.
 - Aucune faute d'orthographe, accents corrects.
 
-## 9. Méthode de livraison
+${ad.note ? '## 8 bis. Consignes spécifiques du client\n' + ad.note + '\n\n' : ''}## 9. Méthode de livraison
 1. **D'abord** : regarde reference/storyboard.jpg et reference/reference_pub.mp4 (extrais des images avec ffmpeg si besoin), puis liste-moi en 5 lignes ta classification des photos et le plan (hook, ordre des scènes, transitions choisies).
 2. Montre-moi **3 images d'aperçu** (hook, scène, fin). J'attends mon accord.
 3. Puis génère le MP4 final et **envoie-le comme fichier**, avec la liste des photos écartées ou à refaire.
