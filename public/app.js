@@ -218,7 +218,7 @@ function ficheHtml(f) {
   <div class="row" style="margin:10px 0"><button class="b o s" id="adm">🎵 Choisir la musique</button><button class="b o s" id="admx">✕ Retirer</button><input type="file" id="admf" accept="audio/*,.mp3,.m4a,.wav" hidden><span class="hint" id="admn" style="margin:0"></span></div>
   <div style="text-align:center"><canvas id="adcv" width="540" height="960" style="max-width:100%;max-height:560px;border-radius:14px;background:#111;box-shadow:0 8px 26px rgba(0,0,0,.25)"></canvas></div>
   <div class="pgb" style="margin:10px 0"><i id="adbar" style="width:0"></i></div>
-  <div class="row"><button class="b" id="adplay">▶ Aperçu</button><button class="b o" id="adrec">⏺ Exporter la vidéo</button><span class="hint" id="adst" style="margin:0"></span></div>
+  <div class="row"><button class="b" id="adplay">▶ Aperçu</button><button class="b o" id="adrec">⏺ Exporter la vidéo</button><button class="b o" id="adkit" title="ZIP avec le prompt, les photos, le logo et les données, à déposer dans Claude">📦 Dossier pour Claude</button><span class="hint" id="adst" style="margin:0"></span></div>
   <p class="hint">L'export se fait en temps réel (45 s de vidéo = 45 s d'attente) : laisse cet onglet au premier plan. La musique reste sur cet ordinateur et doit être libre de droits pour une publicité. Les couleurs viennent de l'onglet Style.</p></div>
   <div class="card"><h2><i>6</i> Générer</h2><p class="hint">Chaque ZIP se téléverse tel quel sur Vercel. Aperçu = exactement ce qui sera dans le ZIP.</p><div class="out" id="out"></div>
    <div class="row" style="margin-top:14px"><button class="b" id="all">⬇ Tout télécharger (ZIP séparés)</button></div><div id="msg2"></div></div>`;

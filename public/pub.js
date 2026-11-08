@@ -150,5 +150,54 @@ function bindAd() {
     const r = await run.done; reset(); poster();
     if (r && r.blob.size > 1000 && r.ok) { const ext = /mp4/.test(r.blob.type) ? 'mp4' : 'webm', a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = (cur.fiche.nom || 'pub').replace(/[^\w-]+/g, '_') + '_pub_' + (ad.fmt || '9:16').replace(':', 'x') + '.' + ext; document.body.appendChild(a); a.click(); a.remove(); st(`✔ Vidéo prête (${ext.toUpperCase()}, ${(r.blob.size / 1048576).toFixed(1)} Mo) : regarde ton dossier Téléchargements.`); } else st('Enregistrement interrompu : relance l\'export.');
   };
+  $('#adkit').onclick = async () => { st('Préparation du dossier…'); const k = await adKit(cur), a = document.createElement('a'); a.href = URL.createObjectURL(k.blob); a.download = 'Dossier_pub_' + (cur.fiche.nom || 'etablissement').replace(/[^\w-]+/g, '_') + '.zip'; document.body.appendChild(a); a.click(); a.remove(); try { await navigator.clipboard.writeText(k.prompt); st('✔ Dossier téléchargé. Le message à coller dans Claude est copié : dépose le ZIP dans la conversation, puis colle-le.'); } catch (e) { st('✔ Dossier téléchargé. Dépose-le dans une conversation Claude avec : ' + k.prompt); } };
   poster();
+}
+
+/* dossier pour Claude : prompt complet + photos + logo + données, à déposer dans une conversation */
+async function adKit(p) {
+  const f = p.fiche, ad = p.ad || {}, fmt = ad.fmt || '9:16', [W, H, fl] = AD_FMT[fmt], dur = Math.min(+ad.dur || 45, 45), sty = AD_STY[ad.style || 1];
+  const zip = new JSZip(), tx = adTexts(f), cats = parseCarte(f.carteTxt), ph = (p.photos || []).slice(0, 12);
+  ph.forEach((x, i) => zip.file(`photos/${String(i + 1).padStart(2, '0')}.jpg`, x.blob));
+  if (p.logo) zip.file('logo.png', p.logo);
+  if (p.adMusic && p.adMusic.blob) zip.file('musique/' + p.adMusic.name.replace(/[^\w.-]+/g, '_'), p.adMusic.blob);
+  const styD = { 1: 'Dynamique : coupes rythmées sur les temps forts, zooms rapides, flash blanc à chaque changement, titres en capitales grasses avec une barre de couleur, barre de progression.', 2: 'Élégant : fondus enchaînés lents, Ken Burns doux, titres en serif avec un filet doré, ambiance haut de gamme.', 3: 'Minimal : fond clair, photos encadrées aux coins arrondis qui glissent, légendes sobres en dessous, beaucoup d\'air.' }[ad.style || 1];
+  const adr = [f.adresse, f.ville].filter(Boolean).join(', '), ig = (String(f.instagram || '').match(/instagram\.com\/([^/?#]+)/i) || [])[1];
+  const plats = cats.flatMap(c => c.items.filter(i => i.prix).map(i => `- ${i.nom} — ${i.prix}`)).slice(0, 12);
+  const md = `# Brief vidéo publicitaire — ${f.nom}
+
+## Ce que je te demande
+Tu es monteur motion design. Avec les fichiers de ce dossier, **réalise une vidéo publicitaire de ${dur} secondes maximum**, au format **${fmt} (${W}×${H}, ${fl})**, en **MP4 H.264 + AAC**, 30 images/seconde.
+
+## Style : ${sty}
+${styD}
+
+## Musique
+${p.adMusic ? `Utilise le fichier du dossier « musique/ ». Coupe-le à ${dur} s maximum, fondu d'entrée 0,6 s et fondu de sortie 1,6 s. Cale les changements de photo sur les temps forts.` : 'Je joins la musique dans la conversation. Utilise-la : coupe à ' + dur + ' s maximum, fondu d\'entrée 0,6 s et de sortie 1,6 s, changements de photo sur les temps forts.'}
+
+## Structure
+1. **Intro (≈ ${Math.round(Math.min(4.2, Math.max(2.6, dur * .12)))} s)** : logo (logo.png) qui apparaît en rond blanc, puis le nom « ${f.nom} »${adTxt(f.slogan) ? ` et l'accroche « ${adTxt(f.slogan)} »` : ''}.
+2. **Scènes photos** : toutes les photos du dossier « photos/ » dans l'ordre, en mouvement lent (Ken Burns), avec par-dessus ces textes (un par scène, dans l'ordre). Compte environ 3 secondes par scène : garde les premiers textes si la durée est courte :
+${tx.map((t, i) => `   - Scène ${i + 1} : ${t.tag ? t.tag + ' — ' : ''}${t.big}${t.small ? ' — ' + t.small : ''}`).join('\n') || '   - (aucun texte : photos seules)'}
+3. **Fin (≈ ${Math.round(Math.min(9, Math.max(4, dur * .2)))} s)** : « Venez nous voir », nom, adresse, bouton « Réservez · ${f.tel || ''} »${ig ? `, compte @${ig}` : ''}.
+
+## Charte
+- Couleur sombre : ${f.c1 || ''} · Accent : ${f.c2 || ''} · Or / survol : ${f.c3 || ''}
+- Titres : ${ad.style == 2 ? 'serif élégant (Playfair Display)' : 'sans-serif gras (Montserrat)'}
+
+## Données de l'établissement (à utiliser telles quelles, sans rien inventer)
+- Nom : ${f.nom}
+- Adresse : ${adr || '—'}
+- Téléphone : ${f.tel || '—'}
+- Site : ${f.site || '—'} · Instagram : ${f.instagram || '—'} · Facebook : ${f.facebook || '—'}
+- Description : ${adTxt(f.descCourte) || adTxt(f.description) || '—'}
+${plats.length ? '\n### Plats et prix\n' + plats.join('\n') : ''}
+
+## Livraison
+1. Montre-moi d'abord une image d'aperçu de 3 moments de la vidéo (intro, scène, fin).
+2. Après mon accord, génère le MP4 et envoie-le-moi comme fichier.
+3. Si une photo est floue, trop sombre ou coupée, dis-le-moi au lieu de l'utiliser telle quelle.
+`;
+  zip.file('LIRE-MOI_brief.md', md); zip.file('fiche.json', JSON.stringify(Object.assign({}, f, { _logo: undefined, _fond: undefined }), null, 1));
+  return { blob: await zip.generateAsync({ type: 'blob' }), prompt: `Voici le dossier de ${f.nom}. Lis LIRE-MOI_brief.md et réalise la vidéo publicitaire demandée (${dur} s max, ${fmt}), en utilisant les photos, le logo et la musique du dossier.` };
 }
