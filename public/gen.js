@@ -394,22 +394,31 @@ const ICONS = {
   gateau: '<path d="M4 20h16M5 20v-6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6M8 12V8M12 12V7M16 12V8M8 6c0-1 .5-1.5.5-2M12 5c0-1 .5-1.5.5-2M16 6c0-1 .5-1.5.5-2"/>',
   velo: '<circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-8h5l3 8M10 8l5 8M9 5h3"/>'
 };
+/* Style « bille de verre » (référence validée par Sylvain, 8 nov.) :
+   sphère très sombre à reflet central doux, calotte de verre translucide en haut avec petit éclat blanc,
+   liseré fin ton sable, ombre ovale au sol ; icône trait crème épais.
+   normal = icône crème · survol = icône couleur d'accent · pressé = bille claire crème, liseré et icône foncés. */
+const BTN_STYLE_PROMPT = 'Bouton rond glossy en verre : sphère très sombre (couleur de marque assombrie à 55 %) avec lueur douce au centre-haut, calotte de verre translucide sur la moitié haute (dégradé blanc 75 % vers transparent), petit éclat blanc ovale incliné en haut à gauche, fin liseré sable/doré, ombre ovale diffuse sous la bille, icône pictogramme à trait épais arrondi couleur crème. États : normal (icône crème), survol (icône couleur d\'accent chaude), pressé (bille claire crème, liseré et icône foncés, reflet atténué, légère réduction).';
 function btnPalette(f) {
-  const c2 = f.c2, c3 = f.c3 || mix(c2, '#ffffff', .5), icon = lum(c2) > .62 ? '#2a1a10' : '#FFF6E3';
+  const c2 = f.c2, c3 = f.c3 || mix(c2, '#ffffff', .5), light = lum(c2) > .62, cream = '#F2E6BC', sand = mix('#cdb88c', c2, .25);
+  const dark = mix(c2, '#000000', light ? .75 : .58), deep = mix(c2, '#000000', .86);
   return {
-    normal: [mix(c2, '#ffffff', .22), c2, mix(c2, '#000000', .45), mix(c2, '#ffffff', .8), icon, .42],
-    survol: [mix(c3, '#ffffff', .3), c3, mix(c3, '#000000', .35), mix(c3, '#000000', .78), mix(c3, '#000000', .8), .38],
-    presse: [mix(c2, '#000000', .45), mix(c2, '#000000', .6), mix(c2, '#000000', .75), mix(c2, '#ffffff', .6), mix(c2, '#ffffff', .82), .12]
+    normal: { glow: mix(c2, '#ffffff', .12), mid: dark, edge: deep, rim: sand, rim2: mix(sand, '#000', .45), icon: light ? '#2a1a10' : cream, cap: .72, sw: 5 },
+    survol: { glow: mix(c2, '#ffffff', .2), mid: mix(c2, '#000000', .5), edge: deep, rim: mix(c3, '#ffffff', .25), rim2: mix(c3, '#000', .4), icon: mix(c3, '#ffffff', .15), cap: .8, sw: 5 },
+    presse: { glow: '#ffffff', mid: '#efe9e1', edge: '#d9d0c4', rim: mix(c2, '#000000', .7), rim2: mix(c2, '#000000', .8), icon: mix(c2, '#000000', .68), cap: .3, sw: 7 }
   };
 }
 function btnSvg(f, key, st, size) {
   const c = btnPalette(f)[st], tr = st === 'presse' ? 'translate(120 114) scale(.96) translate(-120 -114)' : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 240 240"><defs>
-<radialGradient id="g" cx="50%" cy="42%" r="60%"><stop offset="0" stop-color="${c[0]}"/><stop offset=".7" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></radialGradient>
-<radialGradient id="hl" cx="38%" cy="20%" r="48%"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-<filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#000" flood-opacity=".45"/></filter></defs>
-<g transform="${tr}"><circle cx="120" cy="114" r="96" fill="url(#g)" filter="url(#sh)"/><circle cx="120" cy="114" r="94" fill="none" stroke="${c[3]}" stroke-width="5"/><ellipse cx="108" cy="62" rx="50" ry="24" fill="url(#hl)" opacity="${c[5]}"/></g>
-<g transform="translate(120 114) scale(3.2) translate(-12 -12)" fill="none" stroke="${c[4]}" color="${c[4]}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[key]}</g></svg>`;
+<radialGradient id="g" cx="50%" cy="34%" r="68%"><stop offset="0" stop-color="${c.glow}"/><stop offset=".38" stop-color="${c.mid}"/><stop offset="1" stop-color="${c.edge}"/></radialGradient>
+<linearGradient id="cp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="${c.cap}"/><stop offset=".6" stop-color="#fff" stop-opacity="${(c.cap * .16).toFixed(2)}"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<linearGradient id="rm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c.rim}"/><stop offset="1" stop-color="${c.rim2}"/></linearGradient>
+<radialGradient id="sd" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#000" stop-opacity=".42"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+<clipPath id="cl"><circle cx="120" cy="114" r="92"/></clipPath><filter id="bl"><feGaussianBlur stdDeviation="1.6"/></filter></defs>
+<ellipse cx="120" cy="214" rx="82" ry="13" fill="url(#sd)"/>
+<g transform="${tr}"><circle cx="120" cy="114" r="96" fill="url(#g)"/><g clip-path="url(#cl)"><ellipse cx="120" cy="66" rx="80" ry="50" fill="url(#cp)"/></g><circle cx="120" cy="114" r="93.5" fill="none" stroke="url(#rm)" stroke-width="${c.sw}"/>${st === 'presse' ? '' : '<ellipse cx="86" cy="52" rx="17" ry="8" transform="rotate(-28 86 52)" fill="#fff" opacity=".85" filter="url(#bl)"/>'}</g>
+<g transform="translate(120 114) scale(3.8) translate(-12 -12)" fill="none" stroke="${c.icon}" color="${c.icon}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${ICONS[key]}</g></svg>`;
 }
 function svgToPng(svg, size) {
   return new Promise((res, rej) => {
