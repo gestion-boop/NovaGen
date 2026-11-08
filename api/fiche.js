@@ -119,6 +119,11 @@ ${SCHEMA}`;
   }
   return { fiche: f, photos, logos, theme };
 }
+async function voiceTags(b) {
+  const t = String(b.text || '').replace(/\[[^\]]{1,30}\]\s*/g, '').trim().slice(0, 4500); if (!t) throw new Error('texte vide');
+  const j = await claude({ model: MODEL(), max_tokens: 4000, messages: [{ role: 'user', content: 'Voici un texte de voix off publicitaire en français, qui sera lu par ElevenLabs v3. Ajoute des balises audio ElevenLabs v3 entre crochets, en anglais, pour une lecture vivante et naturelle : émotions ([excited], [warmly], [happy], [curious], [thoughtful], [confident], [cheerfully], [softly]) et rythme ([short pause], [pause]). Une balise toutes les 1 à 3 phrases maximum, placée juste avant le passage concerné ; pas de balise de son (rires, soupirs). Ne change AUCUN mot du texte, ni la ponctuation, ni l\'ordre. Réponds UNIQUEMENT avec le texte balisé, sans commentaire.\n\nTEXTE :\n' + t }] });
+  return { text: textOf(j).trim() };
+}
 async function translate(b) {
   const j = await claude({ model: MODEL(), max_tokens: 12000, messages: [{ role: 'user', content: 'Traduis du français vers l\'espagnol (es), l\'allemand (de) et l\'anglais (en), en gardant le ton commercial chaleureux et les noms propres. Réponds UNIQUEMENT en JSON : {"slogan":{"es":"","de":"","en":""},"descCourte":{"es":"","de":"","en":""},"description":{"es":"","de":"","en":""},"services":[{"es":"","de":"","en":""}],"cats":[{"es":"","de":"","en":""}],"descs":[{"es":"","de":"","en":""}]} (services, cats et descs dans le même ordre et le même nombre que ci-dessous ; cats = noms de catégories de carte, descs = descriptions de plats ; garde les noms de plats et noms propres tels quels).\n\n' + JSON.stringify({ slogan: b.slogan, descCourte: b.descCourte, description: b.description, services: b.services, cats: b.cats || [], descs: b.descs || [] }) }] });
   return jsonOf(textOf(j));
@@ -222,6 +227,7 @@ module.exports = async (req, res) => {
     if (b.mode === 'carte_file') return res.json(await carteFile(b));
     if (b.mode === 'assist') return res.json(await assist(b));
     if (b.mode === 'translate') return res.json(await translate(b));
+    if (b.mode === 'voicetags') return res.json(await voiceTags(b));
     return res.json(await search(b));
   } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 };

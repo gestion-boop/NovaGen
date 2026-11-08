@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
       const text = String(b.text || '').trim(), vid = String(b.voice || '');
       if (!text || text.length > 5000) return res.status(400).json({ error: 'texte vide ou trop long (5000 caractères max)' });
       if (!/^[A-Za-z0-9]{8,40}$/.test(vid)) return res.status(400).json({ error: 'voix invalide' });
-      const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + vid + '?output_format=mp3_44100_128', { method: 'POST', headers: Object.assign({ 'content-type': 'application/json', accept: 'audio/mpeg' }, H), body: JSON.stringify({ text, model_id: b.model || 'eleven_multilingual_v2', voice_settings: { stability: .5, similarity_boost: .75, style: .2, use_speaker_boost: true } }) });
+      const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + vid + '?output_format=mp3_44100_128', { method: 'POST', headers: Object.assign({ 'content-type': 'application/json', accept: 'audio/mpeg' }, H), body: JSON.stringify({ text, model_id: b.model || (/\[[a-z][a-z ]{1,25}\]/i.test(text) ? 'eleven_v3' : 'eleven_multilingual_v2'), voice_settings: { stability: .5, similarity_boost: .75, style: .2, use_speaker_boost: true } }) });
       if (!r.ok) { const t = await r.text(); let m = t; try { const j = JSON.parse(t); m = (j.detail && (j.detail.message || j.detail.status || JSON.stringify(j.detail))) || t; } catch (e) { } return res.status(r.status).json({ error: 'ElevenLabs : ' + String(m).slice(0, 200) }); }
       const buf = Buffer.from(await r.arrayBuffer()); res.setHeader('content-type', 'audio/mpeg'); return res.status(200).send(buf);
     }
